@@ -19,6 +19,7 @@ const installTip = document.querySelector("#installTip");
 const modeCopy = document.querySelector("#modeCopy");
 const binaryFields = document.querySelector("#binaryFields");
 const threeWayFields = document.querySelector("#threeWayFields");
+const applyScoreHelperButton = document.querySelector("#applyScoreHelperButton");
 
 const standardInputs = {
   gainAmount: document.querySelector("#gainAmount"),
@@ -35,6 +36,11 @@ const worldInputs = {
   selectionLabel: document.querySelector("#selectionLabel"),
   decimalOdds: document.querySelector("#decimalOdds"),
   subjectiveProbability: document.querySelector("#subjectiveProbability"),
+  homeExpectedGoals: document.querySelector("#homeExpectedGoals"),
+  awayExpectedGoals: document.querySelector("#awayExpectedGoals"),
+  targetHomeGoals: document.querySelector("#targetHomeGoals"),
+  targetAwayGoals: document.querySelector("#targetAwayGoals"),
+  tempoBias: document.querySelector("#tempoBias"),
   homeTeam: document.querySelector("#homeTeam"),
   awayTeam: document.querySelector("#awayTeam"),
   homeProbability: document.querySelector("#homeProbability"),
@@ -71,11 +77,24 @@ const output = {
   notesList: document.querySelector("#notesList"),
 };
 
+const helperOutput = {
+  probability: document.querySelector("#helperProbability"),
+  probabilityHint: document.querySelector("#helperProbabilityHint"),
+  fairOdds: document.querySelector("#helperFairOdds"),
+  fairOddsHint: document.querySelector("#helperFairOddsHint"),
+  outcomeSplit: document.querySelector("#helperOutcomeSplit"),
+  outcomeHint: document.querySelector("#helperOutcomeHint"),
+  topScores: document.querySelector("#helperTopScores"),
+  topScoresHint: document.querySelector("#helperTopScoresHint"),
+  note: document.querySelector("#helperNote"),
+};
+
 const historyList = document.querySelector("#historyList");
 const historyEmpty = document.querySelector("#historyEmpty");
 
 let currentMode = "standard";
 let deferredInstallPrompt = null;
+let latestScoreHelper = null;
 
 const numberFormat = new Intl.NumberFormat("zh-CN", {
   maximumFractionDigits: 2,
@@ -117,6 +136,15 @@ function clamp(value, min, max) {
 function parseNumber(input) {
   const value = Number.parseFloat(input.value);
   return Number.isFinite(value) ? value : null;
+}
+
+function parseWholeNumber(input) {
+  const value = parseNumber(input);
+  if (value === null || !Number.isInteger(value)) {
+    return null;
+  }
+
+  return value;
 }
 
 function getSelectedText(select) {
@@ -270,6 +298,121 @@ function renderResult(state) {
 
 function renderEmpty(mode, message) {
   renderResult(createEmptyMetricState(mode, message));
+}
+
+function renderScoreHelperEmpty(message) {
+  latestScoreHelper = null;
+  helperOutput.probability.textContent = "--";
+  helperOutput.probabilityHint.textContent = message;
+  helperOutput.fairOdds.textContent = "--";
+  helperOutput.fairOddsHint.textContent = "用于和实际比分赔率对比";
+  helperOutput.outcomeSplit.textContent = "--";
+  helperOutput.outcomeHint.textContent = "作为赛果倾向参考";
+  helperOutput.topScores.textContent = "--";
+  helperOutput.topScoresHint.textContent = "只作估值参考，不是直接推荐";
+  helperOutput.note.textContent =
+    "说明：这个辅助器基于预期进球做近似估值，目的是帮你先建立主观概率锚点，再回填到二元玩法的主观胜率。";
+  applyScoreHelperButton.disabled = true;
+}
+
+function factorial(value) {
+  let result = 1;
+  for (let index = 2; index <= value; index += 1) {
+    result *= index;
+  }
+  return result;
+}
+
+function poissonProbability(lambda, goals) {
+  return (Math.exp(-lambda) * lambda ** goals) / factorial(goals);
+}
+
+function refreshScoreHelper() {
+  const homeExpectedGoals = parseNumber(worldInputs.homeExpectedGoals);
+  const awayExpectedGoals = parseNumber(worldInputs.awayExpectedGoals);
+  const targetHomeGoals = parseWholeNumber(worldInputs.targetHomeGoals);
+  const targetAwayGoals = parseWholeNumber(worldInputs.targetAwayGoals);
+  const tempoBias = Number.parseFloat(worldInputs.tempoBias.value || "1");
+
+  if (
+    homeExpectedGoals === null ||
+    awayExpectedGoals === null ||
+    targetHomeGoals === null ||
+    targetAwayGoals === null
+  ) {
+    renderScoreHelperEmpty("填写预期进球和目标比分后，这里会给出参考概率。");
+    return;
+  }
+
+  if (homeExpectedGoals < 0 || awayExpectedGoals < 0) {
+    renderScoreHelperEmpty("预期进球不能小于 0。");
+    return;
+  }
+
+  if (targetHomeGoals < 0 || targetAwayGoals < 0) {
+    renderScoreHelperEmpty("目标比分进球数不能小于 0。");
+    return;
+  }
+
+  const homeLambda = homeExpectedGoals * tempoBias;
+  const awayLambda = awayExpectedGoals * tempoBias;
+  const targetProbability =
+    poissonProbability(homeLambda, targetHomeGoals) *
+    poissonProbability(awayLambda, targetAwayGoals);
+
+  let homeWin = 0;
+  let draw = 0;
+  let awayWin = 0;
+  const matrix = [];
+
+  for (let homeGoals = 0; homeGoals <= 6; homeGoals += 1) {
+    for (let awayGoals = 0; awayGoals <= 6; awayGoals += 1) {
+      const probability =
+        poissonProbability(homeLambda, homeGoals) *
+        poissonProbability(awayLambda, awayGoals);
+
+      matrix.push({
+        label: `${homeGoals}:${awayGoals}`,
+        probability,
+      });
+
+      if (homeGoals > awayGoals) {
+        homeWin += probability;
+      } else if (homeGoals === awayGoals) {
+        draw += probability;
+      } else {
+        awayWin += probability;
+      }
+    }
+  }
+
+  const topScores = matrix
+    .sort((left, right) => right.probability - left.probability)
+    .slice(0, 4);
+
+  const fairOdds = targetProbability > 0 ? 1 / targetProbability : Infinity;
+  latestScoreHelper = {
+    probability: targetProbability,
+    fairOdds,
+    targetLabel: `${targetHomeGoals}:${targetAwayGoals}`,
+    outcomeSplit: { homeWin, draw, awayWin },
+    topScores,
+    homeLambda,
+    awayLambda,
+  };
+
+  helperOutput.probability.textContent = formatPercent(targetProbability);
+  helperOutput.probabilityHint.textContent = `目标比分 ${targetHomeGoals}:${targetAwayGoals} 的参考命中率`;
+  helperOutput.fairOdds.textContent = formatNumber(fairOdds, 2);
+  helperOutput.fairOddsHint.textContent = "如果实际赔率高于公平赔率，才更可能存在价值";
+  helperOutput.outcomeSplit.textContent = `${formatPercent(homeWin)} / ${formatPercent(draw)} / ${formatPercent(awayWin)}`;
+  helperOutput.outcomeHint.textContent = "顺序为主胜 / 平局 / 客胜";
+  helperOutput.topScores.textContent = topScores
+    .map((item) => `${item.label} (${formatPercent(item.probability)})`)
+    .join("、");
+  helperOutput.topScoresHint.textContent = "这是在当前预期进球假设下最可能出现的比分";
+  helperOutput.note.textContent = `当前按主队预期进球 ${formatNumber(homeLambda, 2)}、客队预期进球 ${formatNumber(awayLambda, 2)} 估算。比分玩法建议优先使用半凯利或四分之一凯利。`;
+  applyScoreHelperButton.disabled = false;
 }
 
 function getStateSnapshot() {
@@ -794,6 +937,7 @@ function calculateWorldCup(saveToHistory = false) {
 }
 
 function refreshCurrentCalculation(saveToHistory = false) {
+  refreshScoreHelper();
   return currentMode === "worldCup"
     ? calculateWorldCup(saveToHistory)
     : calculateStandard(saveToHistory);
@@ -895,6 +1039,19 @@ worldResetButton.addEventListener("click", resetWorldForm);
 clearHistoryButton.addEventListener("click", () => {
   localStorage.removeItem(HISTORY_KEY);
   renderHistory();
+});
+
+applyScoreHelperButton.addEventListener("click", () => {
+  if (!latestScoreHelper) {
+    return;
+  }
+
+  worldInputs.subjectiveProbability.value = (latestScoreHelper.probability * 100)
+    .toFixed(2)
+    .replace(/\.?0+$/, "");
+  worldInputs.selectionLabel.value = `比分 ${latestScoreHelper.targetLabel}`;
+  saveState();
+  refreshCurrentCalculation(false);
 });
 
 installButton.addEventListener("click", async () => {

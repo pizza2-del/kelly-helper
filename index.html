@@ -225,6 +225,115 @@
                   />
                 </label>
               </div>
+
+              <div class="field-group helper-group">
+                <div class="helper-head">
+                  <div>
+                    <p class="field-group-title">比分主观概率辅助器</p>
+                    <p class="helper-copy">
+                      先估双方预期进球，再得到目标比分的参考概率和公平赔率。适合比分、半全场这类难直接估胜率的玩法。
+                    </p>
+                  </div>
+                  <button class="text-btn" type="button" id="applyScoreHelperButton">
+                    回填到主观胜率
+                  </button>
+                </div>
+
+                <div class="field-grid">
+                  <label class="field">
+                    <span>主队预期进球</span>
+                    <input
+                      id="homeExpectedGoals"
+                      name="homeExpectedGoals"
+                      type="number"
+                      inputmode="decimal"
+                      min="0"
+                      step="0.1"
+                      placeholder="例如 1.4"
+                    />
+                  </label>
+
+                  <label class="field">
+                    <span>客队预期进球</span>
+                    <input
+                      id="awayExpectedGoals"
+                      name="awayExpectedGoals"
+                      type="number"
+                      inputmode="decimal"
+                      min="0"
+                      step="0.1"
+                      placeholder="例如 0.8"
+                    />
+                  </label>
+                </div>
+
+                <div class="field-grid helper-targets">
+                  <label class="field">
+                    <span>目标比分：主队进球</span>
+                    <input
+                      id="targetHomeGoals"
+                      name="targetHomeGoals"
+                      type="number"
+                      inputmode="numeric"
+                      min="0"
+                      step="1"
+                      placeholder="例如 1"
+                    />
+                  </label>
+
+                  <label class="field">
+                    <span>目标比分：客队进球</span>
+                    <input
+                      id="targetAwayGoals"
+                      name="targetAwayGoals"
+                      type="number"
+                      inputmode="numeric"
+                      min="0"
+                      step="1"
+                      placeholder="例如 0"
+                    />
+                  </label>
+                </div>
+
+                <label class="field">
+                  <span>比赛节奏</span>
+                  <select id="tempoBias" name="tempoBias">
+                    <option value="0.9">偏保守</option>
+                    <option value="1" selected>中性</option>
+                    <option value="1.12">偏开放</option>
+                  </select>
+                </label>
+
+                <div class="helper-grid">
+                  <article class="helper-metric">
+                    <span class="metric-label">目标比分概率</span>
+                    <strong class="metric-value" id="helperProbability">--</strong>
+                    <small class="metric-note" id="helperProbabilityHint">等待输入预期进球</small>
+                  </article>
+
+                  <article class="helper-metric">
+                    <span class="metric-label">对应公平赔率</span>
+                    <strong class="metric-value" id="helperFairOdds">--</strong>
+                    <small class="metric-note" id="helperFairOddsHint">用于和实际比分赔率对比</small>
+                  </article>
+
+                  <article class="helper-metric">
+                    <span class="metric-label">推导的胜平负</span>
+                    <strong class="metric-value" id="helperOutcomeSplit">--</strong>
+                    <small class="metric-note" id="helperOutcomeHint">作为赛果倾向参考</small>
+                  </article>
+
+                  <article class="helper-metric">
+                    <span class="metric-label">最可能比分 Top 4</span>
+                    <strong class="metric-value helper-list" id="helperTopScores">--</strong>
+                    <small class="metric-note" id="helperTopScoresHint">只作估值参考，不是直接推荐</small>
+                  </article>
+                </div>
+
+                <p class="field-note" id="helperNote">
+                  说明：这个辅助器基于预期进球做近似估值，目的是帮你先建立主观概率锚点，再回填到二元玩法的主观胜率。
+                </p>
+              </div>
             </div>
 
             <div id="threeWayFields" hidden>
