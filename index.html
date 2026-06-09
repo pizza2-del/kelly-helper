@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#cf5a2f" />
+    <title>凯利仓位助手</title>
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero card">
+        <p class="eyebrow">Kelly Formula PWA</p>
+        <h1>凯利仓位助手</h1>
+        <p class="subtitle">
+          输入盈利金额、亏损本金和胜负概率，自动给出凯利指数 <strong>f</strong>
+          与建议投入额度。
+        </p>
+        <div class="install-row">
+          <button class="install-btn" id="installButton" type="button" hidden>
+            安装到手机
+          </button>
+          <p class="install-tip" id="installTip">
+            安卓可在浏览器菜单里选择“安装应用”，iPhone 可用 Safari 的“添加到主屏幕”。
+          </p>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <form class="card form-card" id="kellyForm">
+          <div class="section-head">
+            <h2>输入参数</h2>
+            <p>概率支持百分比，也支持 0 到 1 的小数。</p>
+          </div>
+
+          <label class="field">
+            <span>盈利金额</span>
+            <input
+              id="gainAmount"
+              name="gainAmount"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="0.01"
+              placeholder="例如 300"
+              required
+            />
+          </label>
+
+          <label class="field">
+            <span>亏损本金</span>
+            <input
+              id="lossAmount"
+              name="lossAmount"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="0.01"
+              placeholder="例如 100"
+              required
+            />
+          </label>
+
+          <label class="field">
+            <span>单次盈利概率</span>
+            <input
+              id="winProbability"
+              name="winProbability"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="0.01"
+              placeholder="例如 60 或 0.6"
+              required
+            />
+          </label>
+
+          <label class="field">
+            <span>亏损概率</span>
+            <input
+              id="lossProbability"
+              name="lossProbability"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="0.01"
+              placeholder="例如 40 或 0.4"
+              required
+            />
+          </label>
+
+          <label class="field">
+            <span>总资金（可选）</span>
+            <input
+              id="bankroll"
+              name="bankroll"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="0.01"
+              placeholder="例如 10000"
+            />
+          </label>
+
+          <label class="field">
+            <span>仓位系数</span>
+            <select id="riskFactor" name="riskFactor">
+              <option value="1">满凯利</option>
+              <option value="0.5" selected>半凯利</option>
+              <option value="0.25">四分之一凯利</option>
+            </select>
+          </label>
+
+          <div class="actions">
+            <button class="primary-btn" type="submit">立即计算</button>
+            <button class="ghost-btn" type="button" id="resetButton">清空</button>
+          </div>
+        </form>
+
+        <section class="card result-card" aria-live="polite">
+          <div class="section-head">
+            <h2>计算结果</h2>
+            <p id="resultSummary">填写参数后会自动更新结果。</p>
+          </div>
+
+          <div class="result-grid">
+            <article class="metric feature">
+              <span class="metric-label">凯利指数 f</span>
+              <strong class="metric-value" id="kellyValue">--</strong>
+              <small class="metric-note" id="kellyHint">等待输入</small>
+            </article>
+
+            <article class="metric">
+              <span class="metric-label">建议投入比例</span>
+              <strong class="metric-value" id="stakeRatio">--</strong>
+              <small class="metric-note" id="stakeHint">已含仓位系数</small>
+            </article>
+
+            <article class="metric">
+              <span class="metric-label">建议投入金额</span>
+              <strong class="metric-value" id="stakeAmount">--</strong>
+              <small class="metric-note" id="amountHint">需要填写总资金</small>
+            </article>
+
+            <article class="metric">
+              <span class="metric-label">盈亏比 b</span>
+              <strong class="metric-value" id="profitRatio">--</strong>
+              <small class="metric-note" id="ratioHint">盈利金额 ÷ 亏损本金</small>
+            </article>
+          </div>
+
+          <div class="formula-panel">
+            <p class="formula-title">当前采用公式</p>
+            <p class="formula-text">
+              <code>f = (b × p - q) / b = p - q / b</code>
+            </p>
+            <p class="formula-note" id="formulaExplain">
+              其中 <code>b</code> 为盈亏比，<code>p</code> 为盈利概率，<code>q</code> 为亏损概率。
+            </p>
+          </div>
+
+          <ul class="notes" id="notesList">
+            <li>输入完整参数后，这里会显示风险提示与说明。</li>
+          </ul>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
