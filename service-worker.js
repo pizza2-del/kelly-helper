@@ -1,4 +1,4 @@
-const CACHE_NAME = "kelly-position-helper-v4";
+const CACHE_NAME = "kelly-position-helper-v5";
 const ASSETS = [
   "./",
   "./index.html",
