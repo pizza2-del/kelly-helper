@@ -16,156 +16,446 @@
         <p class="eyebrow">Kelly Formula PWA</p>
         <h1>凯利仓位助手</h1>
         <p class="subtitle">
-          输入盈利金额、亏损本金和胜负概率，自动给出凯利指数 <strong>f</strong>
-          与建议投入额度。
+          保留标准凯利计算，同时新增世界杯模式，支持赔率、胜平负、风险上限和本地历史记录。
         </p>
         <div class="install-row">
           <button class="install-btn" id="installButton" type="button" hidden>
             安装到手机
           </button>
           <p class="install-tip" id="installTip">
-            安卓可在浏览器菜单里选择“安装应用”，iPhone 可用 Safari 的“添加到主屏幕”。
+            安卓可在浏览器菜单中选择“安装应用”，iPhone 可用 Safari 的“添加到主屏幕”。
           </p>
         </div>
       </section>
 
       <section class="workspace">
-        <form class="card form-card" id="kellyForm">
-          <div class="section-head">
-            <h2>输入参数</h2>
-            <p>概率支持百分比，也支持 0 到 1 的小数。</p>
+        <section class="card form-card">
+          <div class="mode-switch" role="tablist" aria-label="计算模式">
+            <button
+              class="mode-btn is-active"
+              id="standardModeButton"
+              type="button"
+              data-mode="standard"
+              aria-pressed="true"
+            >
+              标准凯利
+            </button>
+            <button
+              class="mode-btn"
+              id="worldModeButton"
+              type="button"
+              data-mode="worldCup"
+              aria-pressed="false"
+            >
+              世界杯模式
+            </button>
           </div>
 
-          <label class="field">
-            <span>盈利金额</span>
-            <input
-              id="gainAmount"
-              name="gainAmount"
-              type="number"
-              inputmode="decimal"
-              min="0"
-              step="0.01"
-              placeholder="例如 300"
-              required
-            />
-          </label>
+          <p class="mode-copy" id="modeCopy">
+            继续沿用你原来的输入方式：盈利金额、亏损本金、盈利概率、亏损概率。
+          </p>
 
-          <label class="field">
-            <span>亏损本金</span>
-            <input
-              id="lossAmount"
-              name="lossAmount"
-              type="number"
-              inputmode="decimal"
-              min="0"
-              step="0.01"
-              placeholder="例如 100"
-              required
-            />
-          </label>
+          <form class="calc-form" id="standardForm">
+            <div class="section-head">
+              <h2>标准模式</h2>
+              <p>适合通用凯利公式场景，保留你当前已经能正常使用的版本。</p>
+            </div>
 
-          <label class="field">
-            <span>单次盈利概率</span>
-            <input
-              id="winProbability"
-              name="winProbability"
-              type="number"
-              inputmode="decimal"
-              min="0"
-              step="0.01"
-              placeholder="例如 60 或 0.6"
-              required
-            />
-          </label>
+            <label class="field">
+              <span>盈利金额</span>
+              <input
+                id="gainAmount"
+                name="gainAmount"
+                type="number"
+                inputmode="decimal"
+                min="0"
+                step="0.01"
+                placeholder="例如 300"
+                required
+              />
+            </label>
 
-          <label class="field">
-            <span>亏损概率</span>
-            <input
-              id="lossProbability"
-              name="lossProbability"
-              type="number"
-              inputmode="decimal"
-              min="0"
-              step="0.01"
-              placeholder="例如 40 或 0.4"
-              required
-            />
-          </label>
+            <label class="field">
+              <span>亏损本金</span>
+              <input
+                id="lossAmount"
+                name="lossAmount"
+                type="number"
+                inputmode="decimal"
+                min="0"
+                step="0.01"
+                placeholder="例如 100"
+                required
+              />
+            </label>
 
-          <label class="field">
-            <span>总资金（可选）</span>
-            <input
-              id="bankroll"
-              name="bankroll"
-              type="number"
-              inputmode="decimal"
-              min="0"
-              step="0.01"
-              placeholder="例如 10000"
-            />
-          </label>
+            <div class="field-grid">
+              <label class="field">
+                <span>单次盈利概率</span>
+                <input
+                  id="winProbability"
+                  name="winProbability"
+                  type="number"
+                  inputmode="decimal"
+                  min="0"
+                  step="0.01"
+                  placeholder="例如 60 或 0.6"
+                  required
+                />
+              </label>
 
-          <label class="field">
-            <span>仓位系数</span>
-            <select id="riskFactor" name="riskFactor">
-              <option value="1">满凯利</option>
-              <option value="0.5" selected>半凯利</option>
-              <option value="0.25">四分之一凯利</option>
-            </select>
-          </label>
+              <label class="field">
+                <span>亏损概率</span>
+                <input
+                  id="lossProbability"
+                  name="lossProbability"
+                  type="number"
+                  inputmode="decimal"
+                  min="0"
+                  step="0.01"
+                  placeholder="例如 40 或 0.4"
+                  required
+                />
+              </label>
+            </div>
 
-          <div class="actions">
-            <button class="primary-btn" type="submit">立即计算</button>
-            <button class="ghost-btn" type="button" id="resetButton">清空</button>
-          </div>
-        </form>
+            <div class="field-grid">
+              <label class="field">
+                <span>总资金（可选）</span>
+                <input
+                  id="bankroll"
+                  name="bankroll"
+                  type="number"
+                  inputmode="decimal"
+                  min="0"
+                  step="0.01"
+                  placeholder="例如 10000"
+                />
+              </label>
 
-        <section class="card result-card" aria-live="polite">
-          <div class="section-head">
-            <h2>计算结果</h2>
-            <p id="resultSummary">填写参数后会自动更新结果。</p>
-          </div>
+              <label class="field">
+                <span>仓位系数</span>
+                <select id="riskFactor" name="riskFactor">
+                  <option value="1">满凯利</option>
+                  <option value="0.5" selected>半凯利</option>
+                  <option value="0.25">四分之一凯利</option>
+                </select>
+              </label>
+            </div>
 
-          <div class="result-grid">
-            <article class="metric feature">
-              <span class="metric-label">凯利指数 f</span>
-              <strong class="metric-value" id="kellyValue">--</strong>
-              <small class="metric-note" id="kellyHint">等待输入</small>
-            </article>
+            <div class="actions">
+              <button class="primary-btn" type="submit">计算标准凯利</button>
+              <button class="ghost-btn" type="button" id="standardResetButton">清空</button>
+            </div>
+          </form>
 
-            <article class="metric">
-              <span class="metric-label">建议投入比例</span>
-              <strong class="metric-value" id="stakeRatio">--</strong>
-              <small class="metric-note" id="stakeHint">已含仓位系数</small>
-            </article>
+          <form class="calc-form" id="worldCupForm" hidden>
+            <div class="section-head">
+              <h2>世界杯模式</h2>
+              <p>更适合足球赔率场景，支持二元玩法和胜平负三项玩法。</p>
+            </div>
 
-            <article class="metric">
-              <span class="metric-label">建议投入金额</span>
-              <strong class="metric-value" id="stakeAmount">--</strong>
-              <small class="metric-note" id="amountHint">需要填写总资金</small>
-            </article>
+            <label class="field">
+              <span>比赛名称（可选）</span>
+              <input
+                id="matchName"
+                name="matchName"
+                type="text"
+                placeholder="例如 阿根廷 vs 法国"
+              />
+            </label>
 
-            <article class="metric">
-              <span class="metric-label">盈亏比 b</span>
-              <strong class="metric-value" id="profitRatio">--</strong>
-              <small class="metric-note" id="ratioHint">盈利金额 ÷ 亏损本金</small>
-            </article>
-          </div>
+            <div class="field-grid">
+              <label class="field">
+                <span>玩法类型</span>
+                <select id="marketType" name="marketType">
+                  <option value="binary">二元玩法（让球 / 大小球 / 晋级）</option>
+                  <option value="threeWay">胜平负（三项）</option>
+                </select>
+              </label>
 
-          <div class="formula-panel">
-            <p class="formula-title">当前采用公式</p>
-            <p class="formula-text">
-              <code>f = (b × p - q) / b = p - q / b</code>
+              <label class="field">
+                <span>仓位系数</span>
+                <select id="riskFactorWorld" name="riskFactorWorld">
+                  <option value="1">满凯利</option>
+                  <option value="0.5" selected>半凯利</option>
+                  <option value="0.25">四分之一凯利</option>
+                </select>
+              </label>
+            </div>
+
+            <div id="binaryFields">
+              <div class="field-group">
+                <p class="field-group-title">二元玩法参数</p>
+                <div class="field-grid">
+                  <label class="field">
+                    <span>投注选项</span>
+                    <input
+                      id="selectionLabel"
+                      name="selectionLabel"
+                      type="text"
+                      placeholder="例如 法国 -0.5 或 全场大 2.5"
+                    />
+                  </label>
+
+                  <label class="field">
+                    <span>十进制赔率</span>
+                    <input
+                      id="decimalOdds"
+                      name="decimalOdds"
+                      type="number"
+                      inputmode="decimal"
+                      min="1.01"
+                      step="0.01"
+                      placeholder="例如 1.95"
+                    />
+                  </label>
+                </div>
+
+                <label class="field">
+                  <span>你的主观胜率</span>
+                  <input
+                    id="subjectiveProbability"
+                    name="subjectiveProbability"
+                    type="number"
+                    inputmode="decimal"
+                    min="0"
+                    step="0.01"
+                    placeholder="例如 54 或 0.54"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div id="threeWayFields" hidden>
+              <div class="field-group">
+                <p class="field-group-title">胜平负参数</p>
+                <div class="field-grid">
+                  <label class="field">
+                    <span>主队名称（可选）</span>
+                    <input
+                      id="homeTeam"
+                      name="homeTeam"
+                      type="text"
+                      placeholder="例如 巴西"
+                    />
+                  </label>
+
+                  <label class="field">
+                    <span>客队名称（可选）</span>
+                    <input
+                      id="awayTeam"
+                      name="awayTeam"
+                      type="text"
+                      placeholder="例如 西班牙"
+                    />
+                  </label>
+                </div>
+
+                <div class="field-grid">
+                  <label class="field">
+                    <span>主胜概率</span>
+                    <input
+                      id="homeProbability"
+                      name="homeProbability"
+                      type="number"
+                      inputmode="decimal"
+                      min="0"
+                      step="0.01"
+                      placeholder="例如 42 或 0.42"
+                    />
+                  </label>
+
+                  <label class="field">
+                    <span>主胜赔率</span>
+                    <input
+                      id="homeOdds"
+                      name="homeOdds"
+                      type="number"
+                      inputmode="decimal"
+                      min="1.01"
+                      step="0.01"
+                      placeholder="例如 2.25"
+                    />
+                  </label>
+                </div>
+
+                <div class="field-grid">
+                  <label class="field">
+                    <span>平局概率</span>
+                    <input
+                      id="drawProbability"
+                      name="drawProbability"
+                      type="number"
+                      inputmode="decimal"
+                      min="0"
+                      step="0.01"
+                      placeholder="例如 29 或 0.29"
+                    />
+                  </label>
+
+                  <label class="field">
+                    <span>平局赔率</span>
+                    <input
+                      id="drawOdds"
+                      name="drawOdds"
+                      type="number"
+                      inputmode="decimal"
+                      min="1.01"
+                      step="0.01"
+                      placeholder="例如 3.10"
+                    />
+                  </label>
+                </div>
+
+                <div class="field-grid">
+                  <label class="field">
+                    <span>客胜概率</span>
+                    <input
+                      id="awayProbability"
+                      name="awayProbability"
+                      type="number"
+                      inputmode="decimal"
+                      min="0"
+                      step="0.01"
+                      placeholder="例如 29 或 0.29"
+                    />
+                  </label>
+
+                  <label class="field">
+                    <span>客胜赔率</span>
+                    <input
+                      id="awayOdds"
+                      name="awayOdds"
+                      type="number"
+                      inputmode="decimal"
+                      min="1.01"
+                      step="0.01"
+                      placeholder="例如 3.35"
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="field-group">
+              <p class="field-group-title">风险控制</p>
+              <div class="field-grid">
+                <label class="field">
+                  <span>总资金</span>
+                  <input
+                    id="worldBankroll"
+                    name="worldBankroll"
+                    type="number"
+                    inputmode="decimal"
+                    min="0"
+                    step="0.01"
+                    placeholder="例如 10000"
+                  />
+                </label>
+
+                <label class="field">
+                  <span>单场上限（%）</span>
+                  <input
+                    id="maxStakePercent"
+                    name="maxStakePercent"
+                    type="number"
+                    inputmode="decimal"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    placeholder="默认 5"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <p class="field-note">
+              提示：世界杯模式更适合你看到的是“赔率”而不是“盈利金额”的场景。二元玩法适合让球、大小球、晋级；胜平负会分别计算三项，再给出优势最高的一项。
             </p>
-            <p class="formula-note" id="formulaExplain">
-              其中 <code>b</code> 为盈亏比，<code>p</code> 为盈利概率，<code>q</code> 为亏损概率。
-            </p>
-          </div>
 
-          <ul class="notes" id="notesList">
-            <li>输入完整参数后，这里会显示风险提示与说明。</li>
-          </ul>
+            <div class="actions">
+              <button class="primary-btn" type="submit">计算世界杯模式</button>
+              <button class="ghost-btn" type="button" id="worldResetButton">清空</button>
+            </div>
+          </form>
         </section>
+
+        <div class="results-stack">
+          <section class="card result-card" aria-live="polite">
+            <div class="section-head">
+              <h2 id="resultTitle">标准凯利结果</h2>
+              <p id="resultSummary">填写参数后会自动更新结果。</p>
+            </div>
+
+            <div class="result-grid">
+              <article class="metric feature">
+                <span class="metric-label">凯利指数 f</span>
+                <strong class="metric-value" id="kellyValue">--</strong>
+                <small class="metric-note" id="kellyHint">等待输入</small>
+              </article>
+
+              <article class="metric">
+                <span class="metric-label">期望值 EV</span>
+                <strong class="metric-value" id="evValue">--</strong>
+                <small class="metric-note" id="evHint">用于判断是否存在正优势</small>
+              </article>
+
+              <article class="metric">
+                <span class="metric-label">建议投入比例</span>
+                <strong class="metric-value" id="stakeRatio">--</strong>
+                <small class="metric-note" id="stakeHint">已含仓位系数</small>
+              </article>
+
+              <article class="metric">
+                <span class="metric-label">建议投入金额</span>
+                <strong class="metric-value" id="stakeAmount">--</strong>
+                <small class="metric-note" id="amountHint">需要填写总资金</small>
+              </article>
+
+              <article class="metric">
+                <span class="metric-label" id="referenceLabel">盈亏比 b</span>
+                <strong class="metric-value" id="referenceValue">--</strong>
+                <small class="metric-note" id="referenceHint">等待输入</small>
+              </article>
+
+              <article class="metric">
+                <span class="metric-label" id="strategyLabel">盈亏平衡胜率</span>
+                <strong class="metric-value" id="strategyValue">--</strong>
+                <small class="metric-note" id="strategyHint">等待输入</small>
+              </article>
+            </div>
+
+            <div class="formula-panel">
+              <p class="formula-title" id="formulaTitle">当前采用公式</p>
+              <p class="formula-text">
+                <code id="formulaCode">f = (b × p - q) / b = p - q / b</code>
+              </p>
+              <p class="formula-note" id="formulaExplain">
+                其中 b 为盈亏比，p 为盈利概率，q 为亏损概率。
+              </p>
+            </div>
+
+            <ul class="notes" id="notesList">
+              <li>输入完整参数后，这里会显示风险提示与说明。</li>
+            </ul>
+          </section>
+
+          <section class="card history-card">
+            <div class="section-row">
+              <div class="section-head">
+                <h2>本地记录</h2>
+                <p>只保存在当前浏览器设备中，适合世界杯期间快速回看。</p>
+              </div>
+              <button class="text-btn" type="button" id="clearHistoryButton">
+                清空记录
+              </button>
+            </div>
+
+            <p class="history-empty" id="historyEmpty">还没有保存过计算记录。</p>
+            <ul class="history-list" id="historyList"></ul>
+          </section>
+        </div>
       </section>
     </main>
 

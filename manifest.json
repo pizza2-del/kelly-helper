@@ -1,7 +1,7 @@
 {
   "name": "凯利仓位助手",
   "short_name": "凯利助手",
-  "description": "根据盈利金额、亏损本金与胜负概率，快速计算凯利指数 f 和建议投入金额。",
+  "description": "保留标准凯利计算，并支持世界杯赔率、胜平负、风险上限与建议投入金额。",
   "lang": "zh-CN",
   "start_url": "./?source=pwa",
   "scope": "./",
