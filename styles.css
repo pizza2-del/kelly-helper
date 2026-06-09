@@ -243,6 +243,12 @@ body::before {
   align-items: flex-start;
 }
 
+.helper-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .helper-copy {
   margin: 4px 0 0;
   color: var(--muted);
@@ -277,6 +283,13 @@ body::before {
 .helper-list {
   font-size: 1rem;
   line-height: 1.6;
+}
+
+.helper-status {
+  margin: 0;
+  color: var(--accent-deep);
+  font-size: 0.92rem;
+  line-height: 1.65;
 }
 
 .field input,
@@ -543,6 +556,12 @@ code {
 
   .helper-head {
     flex-direction: column;
+  }
+
+  .helper-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
   }
 
   .hero h1 {

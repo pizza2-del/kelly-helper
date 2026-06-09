@@ -171,6 +171,7 @@
                 <select id="marketType" name="marketType">
                   <option value="binary">二元玩法（让球 / 大小球 / 晋级）</option>
                   <option value="threeWay">胜平负（三项）</option>
+                  <option value="scoreHelper">比分辅助器（独立）</option>
                 </select>
               </label>
 
@@ -226,17 +227,25 @@
                 </label>
               </div>
 
+            </div>
+
+            <div id="scoreHelperFields" hidden>
               <div class="field-group helper-group">
                 <div class="helper-head">
                   <div>
                     <p class="field-group-title">比分主观概率辅助器</p>
                     <p class="helper-copy">
-                      先估双方预期进球，再得到目标比分的参考概率和公平赔率。适合比分、半全场这类难直接估胜率的玩法。
+                      这是独立模块：先估双方预期进球，再得到目标比分的参考概率和公平赔率。适合比分、半全场这类难直接估胜率的玩法。
                     </p>
                   </div>
-                  <button class="text-btn" type="button" id="applyScoreHelperButton">
-                    回填到主观胜率
-                  </button>
+                  <div class="helper-actions">
+                    <button class="text-btn" type="button" id="calculateScoreHelperButton">
+                      计算比分概率
+                    </button>
+                    <button class="text-btn" type="button" id="applyScoreHelperButton">
+                      带入二元玩法
+                    </button>
+                  </div>
                 </div>
 
                 <div class="field-grid">
@@ -333,6 +342,7 @@
                 <p class="field-note" id="helperNote">
                   说明：这个辅助器基于预期进球做近似估值，目的是帮你先建立主观概率锚点，再回填到二元玩法的主观胜率。
                 </p>
+                <p class="helper-status" id="helperApplyStatus"></p>
               </div>
             </div>
 

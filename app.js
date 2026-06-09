@@ -18,7 +18,9 @@ const installButton = document.querySelector("#installButton");
 const installTip = document.querySelector("#installTip");
 const modeCopy = document.querySelector("#modeCopy");
 const binaryFields = document.querySelector("#binaryFields");
+const scoreHelperFields = document.querySelector("#scoreHelperFields");
 const threeWayFields = document.querySelector("#threeWayFields");
+const calculateScoreHelperButton = document.querySelector("#calculateScoreHelperButton");
 const applyScoreHelperButton = document.querySelector("#applyScoreHelperButton");
 
 const standardInputs = {
@@ -87,6 +89,7 @@ const helperOutput = {
   topScores: document.querySelector("#helperTopScores"),
   topScoresHint: document.querySelector("#helperTopScoresHint"),
   note: document.querySelector("#helperNote"),
+  status: document.querySelector("#helperApplyStatus"),
 };
 
 const historyList = document.querySelector("#historyList");
@@ -312,6 +315,7 @@ function renderScoreHelperEmpty(message) {
   helperOutput.topScoresHint.textContent = "只作估值参考，不是直接推荐";
   helperOutput.note.textContent =
     "说明：这个辅助器基于预期进球做近似估值，目的是帮你先建立主观概率锚点，再回填到二元玩法的主观胜率。";
+  helperOutput.status.textContent = "";
   applyScoreHelperButton.disabled = true;
 }
 
@@ -412,6 +416,7 @@ function refreshScoreHelper() {
     .join("、");
   helperOutput.topScoresHint.textContent = "这是在当前预期进球假设下最可能出现的比分";
   helperOutput.note.textContent = `当前按主队预期进球 ${formatNumber(homeLambda, 2)}、客队预期进球 ${formatNumber(awayLambda, 2)} 估算。比分玩法建议优先使用半凯利或四分之一凯利。`;
+  helperOutput.status.textContent = "";
   applyScoreHelperButton.disabled = false;
 }
 
@@ -562,8 +567,11 @@ function updateModeUI() {
 }
 
 function updateWorldMarketUI() {
-  const isThreeWay = worldInputs.marketType.value === "threeWay";
-  binaryFields.hidden = isThreeWay;
+  const marketType = worldInputs.marketType.value;
+  const isThreeWay = marketType === "threeWay";
+  const isScoreHelper = marketType === "scoreHelper";
+  binaryFields.hidden = isThreeWay || isScoreHelper;
+  scoreHelperFields.hidden = !isScoreHelper;
   threeWayFields.hidden = !isThreeWay;
 }
 
@@ -930,10 +938,82 @@ function calculateWorldThreeWay(saveToHistory = false) {
   return true;
 }
 
+function calculateScoreHelperMode(saveToHistory = false) {
+  refreshScoreHelper();
+
+  if (!latestScoreHelper) {
+    renderResult({
+      ...createEmptyMetricState("worldCup", "补全比分辅助器参数后，会给出目标比分的参考概率。"),
+      title: "比分辅助结果",
+      referenceLabel: "公平赔率",
+      referenceHint: "根据目标比分概率反推",
+      strategyLabel: "目标比分",
+      strategyHint: "用于建立你的主观概率锚点",
+      formulaTitle: "比分辅助说明",
+      formulaCode: "P(比分) ≈ P(主队进 x 球) × P(客队进 y 球)",
+      formulaExplain: "这里基于双方预期进球做近似估值，主要用途是帮你先估主观概率，不直接给投注仓位。",
+    });
+    return null;
+  }
+
+  const targetLabel = latestScoreHelper.targetLabel;
+  const matchName = worldInputs.matchName.value.trim() || "当前比赛";
+  const notes = [
+    `目标比分 ${targetLabel} 的参考概率约为 ${formatPercent(latestScoreHelper.probability)}。`,
+    `如果市场给出的实际比分赔率高于 ${formatNumber(latestScoreHelper.fairOdds, 2)}，通常才更可能存在正价值。`,
+    `当前推导的胜平负倾向为 主胜 ${formatPercent(latestScoreHelper.outcomeSplit.homeWin)} / 平局 ${formatPercent(latestScoreHelper.outcomeSplit.draw)} / 客胜 ${formatPercent(latestScoreHelper.outcomeSplit.awayWin)}。`,
+    `最可能比分前四项：${latestScoreHelper.topScores.map((item) => `${item.label} ${formatPercent(item.probability)}`).join("、")}。`,
+    "如果你准备把这个概率拿去下注比分、半全场这类高赔率玩法，建议优先使用半凯利或四分之一凯利。",
+  ];
+
+  renderResult({
+    title: "比分辅助结果",
+    summary: `当前已为比分 ${targetLabel} 生成参考概率，你可以先看公平赔率，再决定是否带入二元玩法计算仓位。`,
+    kellyValue: "--",
+    kellyHint: "这个模块本身不直接算仓位",
+    evValue: "--",
+    evHint: "需要你再结合实际市场赔率判断是否有价值",
+    stakeRatio: "--",
+    stakeHint: "可点击“带入二元玩法”继续算仓位",
+    stakeAmount: "--",
+    amountHint: "比分辅助器只负责估概率",
+    referenceLabel: "公平赔率",
+    referenceValue: formatNumber(latestScoreHelper.fairOdds, 2),
+    referenceHint: "如果实际比分赔率高于这条线，更值得继续比较",
+    strategyLabel: "目标比分",
+    strategyValue: targetLabel,
+    strategyHint: `比赛：${matchName}`,
+    formulaTitle: "比分辅助说明",
+    formulaCode: "P(比分) ≈ P(主队进 x 球) × P(客队进 y 球)",
+    formulaExplain: `当前按主队预期进球 ${formatNumber(latestScoreHelper.homeLambda, 2)}、客队预期进球 ${formatNumber(latestScoreHelper.awayLambda, 2)} 进行近似估值。`,
+    notes,
+  });
+
+  if (saveToHistory) {
+    appendHistory({
+      modeLabel: "比分辅助",
+      title: matchName,
+      detail: `比分 ${targetLabel} · 概率 ${formatPercent(latestScoreHelper.probability)} · 公平赔率 ${formatNumber(latestScoreHelper.fairOdds, 2)}`,
+      summary: "已生成比分参考概率",
+      stakeRatioText: `概率 ${formatPercent(latestScoreHelper.probability)}`,
+      stakeAmountText: `公平赔率 ${formatNumber(latestScoreHelper.fairOdds, 2)}`,
+      timestamp: Date.now(),
+    });
+  }
+
+  return true;
+}
+
 function calculateWorldCup(saveToHistory = false) {
-  return worldInputs.marketType.value === "threeWay"
-    ? calculateWorldThreeWay(saveToHistory)
-    : calculateWorldBinary(saveToHistory);
+  if (worldInputs.marketType.value === "threeWay") {
+    return calculateWorldThreeWay(saveToHistory);
+  }
+
+  if (worldInputs.marketType.value === "scoreHelper") {
+    return calculateScoreHelperMode(saveToHistory);
+  }
+
+  return calculateWorldBinary(saveToHistory);
 }
 
 function refreshCurrentCalculation(saveToHistory = false) {
@@ -1041,6 +1121,13 @@ clearHistoryButton.addEventListener("click", () => {
   renderHistory();
 });
 
+calculateScoreHelperButton.addEventListener("click", () => {
+  refreshScoreHelper();
+  if (currentMode === "worldCup" && worldInputs.marketType.value === "scoreHelper") {
+    calculateScoreHelperMode(true);
+  }
+});
+
 applyScoreHelperButton.addEventListener("click", () => {
   if (!latestScoreHelper) {
     return;
@@ -1050,8 +1137,13 @@ applyScoreHelperButton.addEventListener("click", () => {
     .toFixed(2)
     .replace(/\.?0+$/, "");
   worldInputs.selectionLabel.value = `比分 ${latestScoreHelper.targetLabel}`;
+  worldInputs.marketType.value = "binary";
+  updateWorldMarketUI();
+  helperOutput.status.textContent = `已将比分 ${latestScoreHelper.targetLabel} 的参考概率 ${formatPercent(latestScoreHelper.probability)} 带入二元玩法主观胜率。`;
   saveState();
   refreshCurrentCalculation(false);
+  worldInputs.subjectiveProbability.scrollIntoView({ behavior: "smooth", block: "center" });
+  worldInputs.subjectiveProbability.focus();
 });
 
 installButton.addEventListener("click", async () => {
