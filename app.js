@@ -115,6 +115,7 @@ const threeWayHelperOutput = {
 
 const historyList = document.querySelector("#historyList");
 const historyEmpty = document.querySelector("#historyEmpty");
+const historyExportStatus = document.querySelector("#historyExportStatus");
 
 let currentMode = "standard";
 let deferredInstallPrompt = null;
@@ -740,31 +741,74 @@ function downloadTextFile(filename, text) {
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
+  link.style.display = "none";
   document.body.append(link);
   link.click();
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-async function exportHistoryEntry(entry) {
-  const text = buildHistoryExportText(entry);
-  const filename = buildHistoryExportFilename(entry);
+async function shareTextFile(filename, text, title) {
+  if (typeof navigator.share !== "function") {
+    return "unsupported";
+  }
 
-  if (navigator.share) {
-    try {
+  try {
+    const file = new File([text], filename, { type: "text/plain;charset=utf-8" });
+    if (typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
       await navigator.share({
-        title: entry.title || "预测记录",
-        text,
+        title,
+        files: [file],
       });
-      return;
+      return "share";
+    }
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      return "aborted";
+    }
+  }
+
+  return "unsupported";
+}
+
+async function saveTextFile(filename, text) {
+  if (typeof window.showSaveFilePicker === "function") {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [
+          {
+            description: "Text File",
+            accept: {
+              "text/plain": [".txt"],
+            },
+          },
+        ],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(text);
+      await writable.close();
+      return "picker";
     } catch (error) {
       if (error?.name === "AbortError") {
-        return;
+        return "aborted";
       }
     }
   }
 
+  const shared = await shareTextFile(filename, text, "预测记录");
+  if (shared === "share" || shared === "aborted") {
+    return shared;
+  }
+
   downloadTextFile(filename, text);
+  return "download";
+}
+
+async function exportHistoryEntry(entry) {
+  const text = buildHistoryExportText(entry);
+  const filename = buildHistoryExportFilename(entry);
+  return saveTextFile(filename, text);
 }
 
 function appendHistory(entry) {
@@ -1568,6 +1612,7 @@ worldResetButton.addEventListener("click", resetWorldForm);
 
 clearHistoryButton.addEventListener("click", () => {
   localStorage.removeItem(HISTORY_KEY);
+  historyExportStatus.textContent = "";
   renderHistory();
 });
 
@@ -1580,10 +1625,31 @@ historyList.addEventListener("click", async (event) => {
   const index = Number.parseInt(exportButton.dataset.exportIndex ?? "", 10);
   const entry = getHistory()[index];
   if (!entry) {
+    historyExportStatus.textContent = "未找到这条记录，请刷新后重试。";
     return;
   }
 
-  await exportHistoryEntry(entry);
+  const filename = buildHistoryExportFilename(entry);
+  exportButton.disabled = true;
+  historyExportStatus.textContent = `正在导出 ${filename}...`;
+
+  try {
+    const result = await exportHistoryEntry(entry);
+    historyExportStatus.textContent =
+      result === "picker"
+        ? `已保存到本地文件：${filename}`
+        : result === "share"
+          ? `已调用系统分享，可保存或发送文件：${filename}`
+          : result === "download"
+            ? `已开始下载文件：${filename}`
+            : result === "aborted"
+              ? "你已取消本次导出。"
+              : "导出未完成，请重试。";
+  } catch {
+    historyExportStatus.textContent = "导出失败，请稍后重试。";
+  } finally {
+    exportButton.disabled = false;
+  }
 });
 
 calculateScoreHelperButton.addEventListener("click", () => {
