@@ -115,7 +115,7 @@ const threeWayHelperOutput = {
 
 const historyList = document.querySelector("#historyList");
 const historyEmpty = document.querySelector("#historyEmpty");
-const historyExportStatus = document.querySelector("#historyExportStatus");
+const historyStatus = document.querySelector("#historyStatus");
 
 let currentMode = "standard";
 let deferredInstallPrompt = null;
@@ -612,208 +612,22 @@ function formatHistoryTimestamp(timestamp, compact = false) {
   );
 }
 
-function formatStoredNumber(value, digits = 4) {
-  return Number.isFinite(value) ? formatNumber(value, digits) : "--";
-}
-
-function formatStoredPercent(value) {
-  return Number.isFinite(value) ? formatPercent(value) : "--";
-}
-
-function sanitizeFilenamePart(value) {
-  return String(value ?? "")
-    .trim()
-    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 40);
-}
-
-function buildHistoryExportFilename(entry) {
-  const date = new Date(entry.timestamp);
-  const stamp = Number.isNaN(date.getTime())
-    ? "record"
-    : [
-        date.getFullYear(),
-        String(date.getMonth() + 1).padStart(2, "0"),
-        String(date.getDate()).padStart(2, "0"),
-      ].join("") +
-      "-" +
-      [
-        String(date.getHours()).padStart(2, "0"),
-        String(date.getMinutes()).padStart(2, "0"),
-      ].join("");
-  const title = sanitizeFilenamePart(entry.title || entry.modeLabel || "record");
-
-  return `kelly-record-${stamp}-${title || "record"}.txt`;
-}
-
-function buildHistoryExportText(entry) {
-  const lines = [
-    "Kelly Helper",
-    "单条预测记录",
-    "",
-    `记录时间：${formatHistoryTimestamp(entry.timestamp)}`,
-    `模式：${entry.modeLabel ?? "--"}`,
-    `标题：${entry.title ?? "--"}`,
-    `明细：${entry.detail ?? "--"}`,
-    `结论：${entry.summary ?? "--"}`,
-    `建议仓位：${entry.stakeRatioText ?? "--"}`,
-    `建议金额：${entry.stakeAmountText ?? "--"}`,
-  ];
-
-  const meta = entry.exportMeta;
-  if (!meta || typeof meta !== "object") {
-    return lines.join("\n");
+function deleteHistoryEntry(index) {
+  const entries = getHistory();
+  if (index < 0 || index >= entries.length) {
+    return null;
   }
 
-  if (meta.type === "standard") {
-    lines.push("", "输入参数");
-    lines.push(`- 盈利金额：${formatStoredNumber(meta.gainAmount, 2)}`);
-    lines.push(`- 亏损本金：${formatStoredNumber(meta.lossAmount, 2)}`);
-    lines.push(`- 盈利概率：${formatStoredPercent(meta.winProbability)}`);
-    lines.push(`- 亏损概率：${formatStoredPercent(meta.lossProbability)}`);
-    lines.push(`- 总资金：${Number.isFinite(meta.bankroll) ? formatMoney(meta.bankroll) : "--"}`);
-    lines.push(`- 仓位系数：${formatStoredPercent(meta.riskFactor)}`);
-    lines.push("", "计算结果");
-    lines.push(`- 满凯利 f：${formatStoredNumber(meta.rawKelly)}`);
-    lines.push(`- 展示仓位：${formatStoredPercent(meta.displayedKelly)}`);
-    lines.push(`- EV：${formatStoredPercent(meta.expectedValue)}`);
-    lines.push(`- 保本胜率：${formatStoredPercent(meta.breakEvenProbability)}`);
-  }
-
-  if (meta.type === "worldBinary") {
-    lines.push("", "输入参数");
-    lines.push(`- 比赛：${meta.matchName || "--"}`);
-    lines.push(`- 投注选项：${meta.selection || "--"}`);
-    lines.push(`- 赔率：${formatStoredNumber(meta.odds, 3)}`);
-    lines.push(`- 主观胜率：${formatStoredPercent(meta.subjectiveProbability)}`);
-    lines.push(`- 总资金：${Number.isFinite(meta.bankroll) ? formatMoney(meta.bankroll) : "--"}`);
-    lines.push(`- 仓位系数：${formatStoredPercent(meta.riskFactor)}`);
-    lines.push(`- 单场上限：${formatStoredPercent(meta.maxStakePercent)}`);
-    lines.push("", "计算结果");
-    lines.push(`- 满凯利 f：${formatStoredNumber(meta.rawKelly)}`);
-    lines.push(`- 展示仓位：${formatStoredPercent(meta.displayedKelly)}`);
-    lines.push(`- EV：${formatStoredPercent(meta.expectedValue)}`);
-    lines.push(`- 公平赔率：${formatStoredNumber(meta.fairOdds, 3)}`);
-    lines.push(`- 庄家隐含概率：${formatStoredPercent(meta.impliedProbability)}`);
-    lines.push(`- 你的边际：${formatStoredPercent(meta.edge)}`);
-  }
-
-  if (meta.type === "worldThreeWay") {
-    lines.push("", "输入参数");
-    lines.push(`- 比赛：${meta.matchName || "--"}`);
-    lines.push(`- 主队：${meta.homeTeam || "--"}`);
-    lines.push(`- 客队：${meta.awayTeam || "--"}`);
-    lines.push(`- 主胜概率：${formatStoredPercent(meta.homeProbability)}`);
-    lines.push(`- 平局概率：${formatStoredPercent(meta.drawProbability)}`);
-    lines.push(`- 客胜概率：${formatStoredPercent(meta.awayProbability)}`);
-    lines.push(`- 主胜赔率：${formatStoredNumber(meta.homeOdds, 3)}`);
-    lines.push(`- 平局赔率：${formatStoredNumber(meta.drawOdds, 3)}`);
-    lines.push(`- 客胜赔率：${formatStoredNumber(meta.awayOdds, 3)}`);
-    lines.push(`- 总资金：${Number.isFinite(meta.bankroll) ? formatMoney(meta.bankroll) : "--"}`);
-    lines.push(`- 仓位系数：${formatStoredPercent(meta.riskFactor)}`);
-    lines.push(`- 单场上限：${formatStoredPercent(meta.maxStakePercent)}`);
-    lines.push("", "计算结果");
-    lines.push(`- 首选项：${meta.recommendedLabel || "观望"}`);
-    lines.push(`- 满凯利 f：${formatStoredNumber(meta.rawKelly)}`);
-    lines.push(`- 展示仓位：${formatStoredPercent(meta.displayedKelly)}`);
-    lines.push(`- EV：${formatStoredPercent(meta.expectedValue)}`);
-    lines.push(`- 公平赔率：${formatStoredNumber(meta.fairOdds, 3)}`);
-
-    if (Array.isArray(meta.options) && meta.options.length > 0) {
-      lines.push("", "三项比较");
-      meta.options.forEach((option, index) => {
-        lines.push(
-          `${index + 1}. ${option.label || "--"} | 概率 ${formatStoredPercent(option.probability)} | 赔率 ${formatStoredNumber(option.odds, 3)} | EV ${formatStoredPercent(option.expectedValue)} | Kelly ${formatStoredNumber(option.rawKelly)}`,
-        );
-      });
-    }
-  }
-
-  return lines.join("\n");
-}
-
-function downloadTextFile(filename, text) {
-  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.style.display = "none";
-  document.body.append(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-async function shareTextFile(filename, text, title) {
-  if (typeof navigator.share !== "function") {
-    return "unsupported";
-  }
-
-  try {
-    const file = new File([text], filename, { type: "text/plain;charset=utf-8" });
-    if (typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
-      await navigator.share({
-        title,
-        files: [file],
-      });
-      return "share";
-    }
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      return "aborted";
-    }
-  }
-
-  return "unsupported";
-}
-
-async function saveTextFile(filename, text) {
-  if (typeof window.showSaveFilePicker === "function") {
-    try {
-      const handle = await window.showSaveFilePicker({
-        suggestedName: filename,
-        types: [
-          {
-            description: "Text File",
-            accept: {
-              "text/plain": [".txt"],
-            },
-          },
-        ],
-      });
-      const writable = await handle.createWritable();
-      await writable.write(text);
-      await writable.close();
-      return "picker";
-    } catch (error) {
-      if (error?.name === "AbortError") {
-        return "aborted";
-      }
-    }
-  }
-
-  const shared = await shareTextFile(filename, text, "预测记录");
-  if (shared === "share" || shared === "aborted") {
-    return shared;
-  }
-
-  downloadTextFile(filename, text);
-  return "download";
-}
-
-async function exportHistoryEntry(entry) {
-  const text = buildHistoryExportText(entry);
-  const filename = buildHistoryExportFilename(entry);
-  return saveTextFile(filename, text);
+  const [removedEntry] = entries.splice(index, 1);
+  saveHistory(entries);
+  renderHistory();
+  return removedEntry ?? null;
 }
 
 function appendHistory(entry) {
   const entries = [entry, ...getHistory()].slice(0, HISTORY_LIMIT);
   saveHistory(entries);
+  historyStatus.textContent = "";
   renderHistory();
 }
 
@@ -840,13 +654,13 @@ function renderHistory() {
     time.className = "history-time";
     time.textContent = formatHistoryTimestamp(entry.timestamp, true);
 
-    const exportButton = document.createElement("button");
-    exportButton.className = "text-btn history-action-btn";
-    exportButton.type = "button";
-    exportButton.dataset.exportIndex = String(index);
-    exportButton.textContent = "导出";
+    const deleteButton = document.createElement("button");
+    deleteButton.className = "text-btn history-action-btn";
+    deleteButton.type = "button";
+    deleteButton.dataset.deleteIndex = String(index);
+    deleteButton.textContent = "删除";
 
-    actions.append(time, exportButton);
+    actions.append(time, deleteButton);
     top.append(badge, actions);
 
     const title = document.createElement("p");
@@ -1018,19 +832,6 @@ function calculateStandard(saveToHistory = false) {
       stakeRatioText: `建议 ${formatPercent(displayedKelly)}`,
       stakeAmountText: stakeAmount.value,
       timestamp: Date.now(),
-      exportMeta: {
-        type: "standard",
-        gainAmount,
-        lossAmount,
-        winProbability: p,
-        lossProbability: q,
-        bankroll,
-        riskFactor,
-        rawKelly,
-        displayedKelly,
-        expectedValue,
-        breakEvenProbability,
-      },
     });
   }
 
@@ -1130,22 +931,6 @@ function calculateWorldBinary(saveToHistory = false) {
       stakeRatioText: `建议 ${formatPercent(displayedKelly)}`,
       stakeAmountText: stakeAmount.value,
       timestamp: Date.now(),
-      exportMeta: {
-        type: "worldBinary",
-        matchName,
-        selection,
-        odds,
-        subjectiveProbability: p,
-        bankroll,
-        riskFactor,
-        maxStakePercent: capRatio,
-        rawKelly,
-        displayedKelly,
-        expectedValue,
-        fairOdds,
-        impliedProbability,
-        edge,
-      },
     });
   }
 
@@ -1279,33 +1064,6 @@ function calculateWorldThreeWay(saveToHistory = false) {
       stakeRatioText: hasPositiveEdge ? `建议 ${formatPercent(bestOption.displayedKelly)}` : "建议观望",
       stakeAmountText: hasPositiveEdge ? stakeAmount.value : "--",
       timestamp: Date.now(),
-      exportMeta: {
-        type: "worldThreeWay",
-        matchName: matchLabel,
-        homeTeam,
-        awayTeam,
-        homeProbability,
-        drawProbability,
-        awayProbability,
-        homeOdds: oddsValues[0],
-        drawOdds: oddsValues[1],
-        awayOdds: oddsValues[2],
-        bankroll,
-        riskFactor,
-        maxStakePercent: capRatio,
-        recommendedLabel: hasPositiveEdge ? bestOption.label : "瑙傛湜",
-        rawKelly: hasPositiveEdge ? bestOption.rawKelly : 0,
-        displayedKelly: hasPositiveEdge ? bestOption.displayedKelly : 0,
-        expectedValue: bestOption.expectedValue,
-        fairOdds: bestOption.fairOdds,
-        options: options.map((option) => ({
-          label: option.label,
-          probability: option.probability,
-          odds: option.odds,
-          expectedValue: option.expectedValue,
-          rawKelly: option.rawKelly,
-        })),
-      },
     });
   }
 
@@ -1612,44 +1370,29 @@ worldResetButton.addEventListener("click", resetWorldForm);
 
 clearHistoryButton.addEventListener("click", () => {
   localStorage.removeItem(HISTORY_KEY);
-  historyExportStatus.textContent = "";
+  historyStatus.textContent = "已清空全部记录。";
   renderHistory();
 });
 
-historyList.addEventListener("click", async (event) => {
-  const exportButton = event.target.closest("[data-export-index]");
-  if (!exportButton) {
+historyList.addEventListener("click", (event) => {
+  const deleteButton = event.target.closest("[data-delete-index]");
+  if (!deleteButton) {
     return;
   }
 
-  const index = Number.parseInt(exportButton.dataset.exportIndex ?? "", 10);
-  const entry = getHistory()[index];
-  if (!entry) {
-    historyExportStatus.textContent = "未找到这条记录，请刷新后重试。";
+  const index = Number.parseInt(deleteButton.dataset.deleteIndex ?? "", 10);
+  if (!Number.isInteger(index)) {
+    historyStatus.textContent = "未找到这条记录，请刷新后重试。";
     return;
   }
 
-  const filename = buildHistoryExportFilename(entry);
-  exportButton.disabled = true;
-  historyExportStatus.textContent = `正在导出 ${filename}...`;
-
-  try {
-    const result = await exportHistoryEntry(entry);
-    historyExportStatus.textContent =
-      result === "picker"
-        ? `已保存到本地文件：${filename}`
-        : result === "share"
-          ? `已调用系统分享，可保存或发送文件：${filename}`
-          : result === "download"
-            ? `已开始下载文件：${filename}`
-            : result === "aborted"
-              ? "你已取消本次导出。"
-              : "导出未完成，请重试。";
-  } catch {
-    historyExportStatus.textContent = "导出失败，请稍后重试。";
-  } finally {
-    exportButton.disabled = false;
+  const deletedEntry = deleteHistoryEntry(index);
+  if (!deletedEntry) {
+    historyStatus.textContent = "删除失败，请刷新后重试。";
+    return;
   }
+
+  historyStatus.textContent = `已删除记录：${deletedEntry.title}`;
 });
 
 calculateScoreHelperButton.addEventListener("click", () => {
