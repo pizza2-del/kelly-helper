@@ -3,6 +3,7 @@ const HISTORY_KEY = "kelly-position-helper-history-v1";
 const HISTORY_LIMIT = 12;
 const DEFAULT_WORLD_SINGLE_CAP_PERCENT = 5;
 const DEFAULT_WORLD_DAILY_CAP_PERCENT = 12;
+const DEFAULT_PARLAY_CAP_RATIO = 0.005;
 const EPSILON = 0.000001;
 
 const reviewStatusLabels = {
@@ -34,7 +35,7 @@ const confidenceRules = {
 const modeCopyMap = {
   standard: "继续沿用你原来的输入方式：盈利金额、亏损本金、盈利概率、亏损概率。",
   worldCup:
-    "更贴近世界杯实际投注场景：直接用赔率、主观胜率和单场上限来控制仓位。",
+    "更贴近世界杯实际投注场景：支持单场、胜平负和 2-3 场串关，并用风控限制实战仓位。",
 };
 
 const modeButtons = [...document.querySelectorAll(".mode-btn")];
@@ -47,9 +48,13 @@ const installButton = document.querySelector("#installButton");
 const installTip = document.querySelector("#installTip");
 const modeCopy = document.querySelector("#modeCopy");
 const binaryFields = document.querySelector("#binaryFields");
+const binaryBetFields = document.querySelector("#binaryBetFields");
+const scoreHelperFields = document.querySelector("#scoreHelperFields");
 const threeWayFields = document.querySelector("#threeWayFields");
+const parlayFields = document.querySelector("#parlayFields");
 const calculateScoreHelperButton = document.querySelector("#calculateScoreHelperButton");
 const applyScoreHelperButton = document.querySelector("#applyScoreHelperButton");
+const addScoreToParlayButton = document.querySelector("#addScoreToParlayButton");
 const calculateThreeWayHelperButton = document.querySelector("#calculateThreeWayHelperButton");
 const applyThreeWayHelperButton = document.querySelector("#applyThreeWayHelperButton");
 
@@ -96,6 +101,15 @@ const worldInputs = {
   tournamentStakeUsed: document.querySelector("#tournamentStakeUsed"),
   losingStreak: document.querySelector("#losingStreak"),
   confidenceLevel: document.querySelector("#confidenceLevel"),
+  parlayLeg1Label: document.querySelector("#parlayLeg1Label"),
+  parlayLeg1Probability: document.querySelector("#parlayLeg1Probability"),
+  parlayLeg1Odds: document.querySelector("#parlayLeg1Odds"),
+  parlayLeg2Label: document.querySelector("#parlayLeg2Label"),
+  parlayLeg2Probability: document.querySelector("#parlayLeg2Probability"),
+  parlayLeg2Odds: document.querySelector("#parlayLeg2Odds"),
+  parlayLeg3Label: document.querySelector("#parlayLeg3Label"),
+  parlayLeg3Probability: document.querySelector("#parlayLeg3Probability"),
+  parlayLeg3Odds: document.querySelector("#parlayLeg3Odds"),
 };
 
 const output = {
@@ -435,6 +449,7 @@ function renderScoreHelperEmpty(message) {
     "说明：这个辅助器基于预期进球做近似估值，目的是帮你先建立主观概率锚点，再回填到二元玩法的主观胜率。";
   helperOutput.status.textContent = "";
   applyScoreHelperButton.disabled = true;
+  addScoreToParlayButton.disabled = true;
 }
 
 function renderThreeWayHelperEmpty(message) {
@@ -552,6 +567,7 @@ function refreshScoreHelper() {
   helperOutput.note.textContent = `当前按主队预期进球 ${formatNumber(homeLambda, 2)}、客队预期进球 ${formatNumber(awayLambda, 2)} 估算。比分玩法建议优先使用半凯利或四分之一凯利。`;
   helperOutput.status.textContent = "";
   applyScoreHelperButton.disabled = false;
+  addScoreToParlayButton.disabled = false;
 }
 
 function getStateSnapshot() {
@@ -613,7 +629,11 @@ function restoreState() {
       }
     });
 
-    if (worldInputs.marketType.value !== "binary" && worldInputs.marketType.value !== "threeWay") {
+    if (
+      worldInputs.marketType.value !== "binary" &&
+      worldInputs.marketType.value !== "threeWay" &&
+      worldInputs.marketType.value !== "parlay"
+    ) {
       worldInputs.marketType.value = "binary";
     }
 
@@ -868,9 +888,16 @@ function updateModeUI() {
 }
 
 function updateWorldMarketUI() {
+  const isBinary = worldInputs.marketType.value === "binary";
   const isThreeWay = worldInputs.marketType.value === "threeWay";
+  const isParlay = worldInputs.marketType.value === "parlay";
   binaryFields.hidden = isThreeWay;
+  binaryBetFields.hidden = !isBinary;
+  scoreHelperFields.hidden = isThreeWay;
   threeWayFields.hidden = !isThreeWay;
+  parlayFields.hidden = !isParlay;
+  applyScoreHelperButton.hidden = isParlay;
+  addScoreToParlayButton.hidden = !isParlay;
 }
 
 function getPercentRatio(value, fallbackPercent) {
@@ -1403,9 +1430,239 @@ function calculateWorldThreeWay(saveToHistory = false) {
   return true;
 }
 
+function getParlayLegFields() {
+  return [
+    {
+      index: 1,
+      labelInput: worldInputs.parlayLeg1Label,
+      probabilityInput: worldInputs.parlayLeg1Probability,
+      oddsInput: worldInputs.parlayLeg1Odds,
+    },
+    {
+      index: 2,
+      labelInput: worldInputs.parlayLeg2Label,
+      probabilityInput: worldInputs.parlayLeg2Probability,
+      oddsInput: worldInputs.parlayLeg2Odds,
+    },
+    {
+      index: 3,
+      labelInput: worldInputs.parlayLeg3Label,
+      probabilityInput: worldInputs.parlayLeg3Probability,
+      oddsInput: worldInputs.parlayLeg3Odds,
+    },
+  ];
+}
+
+function findAvailableParlayLegField() {
+  return getParlayLegFields().find((field) => {
+    const probability = field.probabilityInput.value.trim();
+    return probability === "";
+  });
+}
+
+function fillParlayLegFromScoreHelper() {
+  if (!latestScoreHelper) {
+    return null;
+  }
+
+  const targetField = findAvailableParlayLegField();
+  if (!targetField) {
+    return null;
+  }
+
+  targetField.labelInput.value = `比分 ${latestScoreHelper.targetLabel}`;
+  targetField.probabilityInput.value = (latestScoreHelper.probability * 100)
+    .toFixed(2)
+    .replace(/\.?0+$/, "");
+
+  return targetField;
+}
+
+function getParlayLegs() {
+  const legs = [];
+  const notes = [];
+
+  for (const field of getParlayLegFields()) {
+    const rawLabel = field.labelInput.value.trim();
+    const rawProbability = parseNumber(field.probabilityInput);
+    const rawOdds = parseNumber(field.oddsInput);
+    const hasAnyValue = rawLabel !== "" || rawProbability !== null || rawOdds !== null;
+    const isRequired = field.index <= 2;
+
+    if (!hasAnyValue && !isRequired) {
+      continue;
+    }
+
+    if (rawProbability === null || rawOdds === null) {
+      return {
+        error: `第 ${field.index} 腿需要同时填写主观命中概率和十进制赔率。`,
+      };
+    }
+
+    if (rawOdds <= 1) {
+      return {
+        error: `第 ${field.index} 腿十进制赔率必须大于 1。`,
+      };
+    }
+
+    const probabilityPack = normalizeSingleProbability(rawProbability, `第 ${field.index} 腿命中概率`);
+    if (!probabilityPack) {
+      return {
+        error: `第 ${field.index} 腿需要填写主观命中概率。`,
+      };
+    }
+
+    if (probabilityPack.error) {
+      return { error: probabilityPack.error };
+    }
+
+    probabilityPack.notes.forEach((note) => {
+      notes.push(`第 ${field.index} 腿：${note}`);
+    });
+
+    const probability = probabilityPack.value;
+    const expectedValue = probability * rawOdds - 1;
+    const impliedProbability = 1 / rawOdds;
+    const fairOdds = probability > 0 ? 1 / probability : Infinity;
+
+    legs.push({
+      index: field.index,
+      label: rawLabel || `第 ${field.index} 腿`,
+      probability,
+      odds: rawOdds,
+      expectedValue,
+      impliedProbability,
+      fairOdds,
+    });
+  }
+
+  if (legs.length < 2) {
+    return {
+      error: "串关至少需要填写 2 腿完整的概率和赔率。",
+    };
+  }
+
+  return { legs, notes };
+}
+
+function applyParlayRiskCap(control) {
+  const cappedKelly = Math.min(control.displayedKelly, DEFAULT_PARLAY_CAP_RATIO);
+
+  return {
+    ...control,
+    displayedKelly: cappedKelly,
+    limitReason:
+      cappedKelly + EPSILON < control.displayedKelly
+        ? "串关硬上限"
+        : control.limitReason,
+  };
+}
+
+function calculateWorldParlay(saveToHistory = false) {
+  const matchName = worldInputs.matchName.value.trim() || "串关组合";
+  const parlayPack = getParlayLegs();
+
+  if (parlayPack.error) {
+    renderEmpty("worldCup", parlayPack.error);
+    return null;
+  }
+
+  const legs = parlayPack.legs;
+  const combinedProbability = legs.reduce((product, leg) => product * leg.probability, 1);
+  const combinedOdds = legs.reduce((product, leg) => product * leg.odds, 1);
+  const expectedValue = combinedProbability * combinedOdds - 1;
+  const b = combinedOdds - 1;
+  const rawKelly = b > 0 ? expectedValue / b : 0;
+  const fairOdds = combinedProbability > 0 ? 1 / combinedProbability : Infinity;
+  const impliedProbability = combinedOdds > 0 ? 1 / combinedOdds : 0;
+  const baseRiskControl = applyWorldRiskControls(rawKelly);
+  const riskControl = applyParlayRiskCap(baseRiskControl);
+  const displayedKelly = riskControl.displayedKelly;
+  const stakeAmount = buildStakeAmount(riskControl.bankroll, displayedKelly);
+  const notes = [...parlayPack.notes];
+  const legLabels = legs.map((leg) => leg.label);
+  const negativeLegs = legs.filter((leg) => leg.expectedValue <= 0);
+  renderWorldRiskPanel(riskControl, riskControl);
+
+  legs.forEach((leg) => {
+    notes.push(
+      `第 ${leg.index} 腿 ${leg.label}：概率 ${formatPercent(leg.probability)}，赔率 ${formatNumber(leg.odds, 3)}，单腿 EV ${formatPercent(leg.expectedValue)}，公平赔率 ${formatNumber(leg.fairOdds, 2)}。`,
+    );
+  });
+
+  if (negativeLegs.length > 0) {
+    notes.push(
+      `有 ${negativeLegs.length} 腿单独看 EV 不为正：${negativeLegs.map((leg) => leg.label).join("、")}。这类腿会拖累整组串关，建议重点复核。`,
+    );
+  }
+
+  notes.push(
+    `串关组合概率为 ${formatPercent(combinedProbability)}，组合赔率为 ${formatNumber(combinedOdds, 2)}，组合公平赔率为 ${formatNumber(fairOdds, 2)}。`,
+  );
+  notes.push(
+    `串关只适合近似独立的不同比赛。若是同一场里的比分 + 大小球 / 胜平负，不能直接用概率相乘。`,
+  );
+  notes.push(
+    `比分串关波动很高，风控后还会额外套用 ${formatPercent(DEFAULT_PARLAY_CAP_RATIO)} 的串关硬上限。`,
+  );
+
+  const summary =
+    rawKelly <= 0
+      ? `“${matchName}”当前组合没有正向优势，建议观望或减少腿数。`
+      : displayedKelly + EPSILON < riskControl.selectedKelly
+        ? `“${matchName}”存在正向优势，但实战仓位已被${riskControl.limitReason}压住。`
+        : `“${matchName}”存在正向优势，但仍应按比分串关的小仓位执行。`;
+
+  renderResult({
+    title: "世界杯串关结果",
+    summary,
+    kellyValue: formatNumber(rawKelly),
+    kellyHint: rawKelly > 0 ? "这是组合赔率和组合概率下的原始满凯利" : "当前不建议下注",
+    evValue: formatPercent(expectedValue),
+    evHint: "组合每下注 1 单位的理论收益率",
+    stakeRatio: formatPercent(displayedKelly),
+    stakeHint: createWorldStakeHint(riskControl),
+    stakeAmount: stakeAmount.value,
+    amountHint: stakeAmount.hint,
+    referenceLabel: "组合赔率",
+    referenceValue: formatNumber(combinedOdds, 2),
+    referenceHint: `组合隐含概率 ${formatPercent(impliedProbability)}，组合公平赔率 ${formatNumber(fairOdds, 2)}`,
+    strategyLabel: "串关腿数",
+    strategyValue: `${legs.length} 腿`,
+    strategyHint: legLabels.join(" / "),
+    formulaTitle: "串关计算公式",
+    formulaCode: "P = p1 × p2 × ...；Odds = o1 × o2 × ...；EV = P × Odds - 1",
+    formulaExplain: `本次按 ${legs.length} 腿近似独立计算，再用 f = EV / (组合赔率 - 1) 得到组合 Kelly。`,
+    notes,
+  });
+
+  if (saveToHistory) {
+    appendHistory({
+      modeLabel: "世界杯串关",
+      title: matchName,
+      detail: `${legs.length} 腿 · 组合赔率 ${formatNumber(combinedOdds, 2)} · EV ${formatPercent(expectedValue)} · 满凯利 ${formatNumber(rawKelly)}`,
+      summary,
+      stakeRatioText: rawKelly > 0 ? `建议 ${formatPercent(displayedKelly)}` : "建议观望",
+      stakeAmountText: rawKelly > 0 ? stakeAmount.value : "--",
+      rawKelly,
+      displayedKelly: rawKelly > 0 ? displayedKelly : 0,
+      expectedValue,
+      marketLabel: "串关",
+      recommendedLabel: legLabels.join(" / "),
+      timestamp: Date.now(),
+    });
+  }
+
+  return true;
+}
+
 function calculateWorldCup(saveToHistory = false) {
   if (worldInputs.marketType.value === "threeWay") {
     return calculateWorldThreeWay(saveToHistory);
+  }
+
+  if (worldInputs.marketType.value === "parlay") {
+    return calculateWorldParlay(saveToHistory);
   }
 
   return calculateWorldBinary(saveToHistory);
@@ -1781,7 +2038,10 @@ historyList.addEventListener("keydown", (event) => {
 calculateScoreHelperButton.addEventListener("click", () => {
   refreshScoreHelper();
   if (latestScoreHelper) {
-    helperOutput.status.textContent = `已生成比分 ${latestScoreHelper.targetLabel} 的参考概率 ${formatPercent(latestScoreHelper.probability)}，现在可以点击“回填到主观胜率”。`;
+    helperOutput.status.textContent =
+      worldInputs.marketType.value === "parlay"
+        ? `已生成比分 ${latestScoreHelper.targetLabel} 的参考概率 ${formatPercent(latestScoreHelper.probability)}，现在可以点击“加入串关腿”。`
+        : `已生成比分 ${latestScoreHelper.targetLabel} 的参考概率 ${formatPercent(latestScoreHelper.probability)}，现在可以点击“回填到主观胜率”。`;
   } else {
     helperOutput.status.textContent = "请先补全预期进球和目标比分。";
   }
@@ -1801,6 +2061,26 @@ applyScoreHelperButton.addEventListener("click", () => {
   refreshCurrentCalculation(false);
   worldInputs.subjectiveProbability.scrollIntoView({ behavior: "smooth", block: "center" });
   worldInputs.subjectiveProbability.focus();
+});
+
+addScoreToParlayButton.addEventListener("click", () => {
+  if (!latestScoreHelper) {
+    helperOutput.status.textContent = "请先计算比分概率，再加入串关腿。";
+    return;
+  }
+
+  const filledField = fillParlayLegFromScoreHelper();
+  if (!filledField) {
+    helperOutput.status.textContent = "三条串关腿都已有概率。请先清空某一腿，再重新加入。";
+    return;
+  }
+
+  helperOutput.status.textContent =
+    `已把比分 ${latestScoreHelper.targetLabel} 的概率 ${formatPercent(latestScoreHelper.probability)} 填入第 ${filledField.index} 腿。请继续手动填写该腿实际赔率。`;
+  saveState();
+  refreshCurrentCalculation(false);
+  filledField.oddsInput.scrollIntoView({ behavior: "smooth", block: "center" });
+  filledField.oddsInput.focus();
 });
 
 calculateThreeWayHelperButton.addEventListener("click", () => {

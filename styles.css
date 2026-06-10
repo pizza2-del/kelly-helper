@@ -292,6 +292,26 @@ body::before {
   line-height: 1.65;
 }
 
+.parlay-leg {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 252, 248, 0.76);
+  border: 1px solid rgba(143, 52, 23, 0.12);
+}
+
+.parlay-leg + .parlay-leg {
+  margin-top: 6px;
+}
+
+.parlay-leg-title {
+  margin: 0;
+  color: var(--accent-deep);
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
 .field input,
 .field select {
   padding: 14px 16px;

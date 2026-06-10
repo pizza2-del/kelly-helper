@@ -171,6 +171,7 @@
                 <select id="marketType" name="marketType">
                   <option value="binary">二元玩法（让球 / 大小球 / 晋级）</option>
                   <option value="threeWay">胜平负（三项）</option>
+                  <option value="parlay">串关（2-3 场）</option>
                 </select>
               </label>
 
@@ -185,7 +186,7 @@
             </div>
 
             <div id="binaryFields">
-              <div class="field-group">
+              <div class="field-group" id="binaryBetFields">
                 <p class="field-group-title">二元玩法参数</p>
                 <div class="field-grid">
                   <label class="field">
@@ -226,7 +227,7 @@
                 </label>
               </div>
 
-              <div class="field-group helper-group">
+              <div class="field-group helper-group" id="scoreHelperFields">
                 <div class="helper-head">
                   <div>
                     <p class="field-group-title">比分主观概率辅助器</p>
@@ -240,6 +241,9 @@
                     </button>
                     <button class="text-btn" type="button" id="applyScoreHelperButton">
                       回填到主观胜率
+                    </button>
+                    <button class="text-btn" type="button" id="addScoreToParlayButton">
+                      加入串关腿
                     </button>
                   </div>
                 </div>
@@ -607,6 +611,135 @@
                   说明：这不是替你自动预测赛果，而是把你的判断拆成几个固定维度，并始终从赔率基线出发，减少主观概率漂移。
                 </p>
                 <p class="helper-status" id="threeWayHelperStatus"></p>
+              </div>
+            </div>
+
+            <div id="parlayFields" hidden>
+              <div class="field-group">
+                <p class="field-group-title">串关参数</p>
+                <p class="field-note">
+                  适合两场或三场不同比赛串关。系统会把每一腿的主观概率相乘、赔率相乘，再计算组合 EV 和 Kelly。不要用它硬算同一场里的强相关组合。
+                </p>
+
+                <div class="parlay-leg">
+                  <p class="parlay-leg-title">第 1 腿</p>
+                  <label class="field">
+                    <span>投注项 / 比分</span>
+                    <input
+                      id="parlayLeg1Label"
+                      name="parlayLeg1Label"
+                      type="text"
+                      placeholder="例如 阿根廷 2:1"
+                    />
+                  </label>
+                  <div class="field-grid">
+                    <label class="field">
+                      <span>主观命中概率</span>
+                      <input
+                        id="parlayLeg1Probability"
+                        name="parlayLeg1Probability"
+                        type="number"
+                        inputmode="decimal"
+                        min="0"
+                        step="0.01"
+                        placeholder="例如 12 或 0.12"
+                      />
+                    </label>
+
+                    <label class="field">
+                      <span>十进制赔率</span>
+                      <input
+                        id="parlayLeg1Odds"
+                        name="parlayLeg1Odds"
+                        type="number"
+                        inputmode="decimal"
+                        min="1.01"
+                        step="0.01"
+                        placeholder="例如 9.5"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div class="parlay-leg">
+                  <p class="parlay-leg-title">第 2 腿</p>
+                  <label class="field">
+                    <span>投注项 / 比分</span>
+                    <input
+                      id="parlayLeg2Label"
+                      name="parlayLeg2Label"
+                      type="text"
+                      placeholder="例如 法国 1:0"
+                    />
+                  </label>
+                  <div class="field-grid">
+                    <label class="field">
+                      <span>主观命中概率</span>
+                      <input
+                        id="parlayLeg2Probability"
+                        name="parlayLeg2Probability"
+                        type="number"
+                        inputmode="decimal"
+                        min="0"
+                        step="0.01"
+                        placeholder="例如 10 或 0.10"
+                      />
+                    </label>
+
+                    <label class="field">
+                      <span>十进制赔率</span>
+                      <input
+                        id="parlayLeg2Odds"
+                        name="parlayLeg2Odds"
+                        type="number"
+                        inputmode="decimal"
+                        min="1.01"
+                        step="0.01"
+                        placeholder="例如 11"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div class="parlay-leg">
+                  <p class="parlay-leg-title">第 3 腿（可选）</p>
+                  <label class="field">
+                    <span>投注项 / 比分</span>
+                    <input
+                      id="parlayLeg3Label"
+                      name="parlayLeg3Label"
+                      type="text"
+                      placeholder="例如 巴西 2:0"
+                    />
+                  </label>
+                  <div class="field-grid">
+                    <label class="field">
+                      <span>主观命中概率</span>
+                      <input
+                        id="parlayLeg3Probability"
+                        name="parlayLeg3Probability"
+                        type="number"
+                        inputmode="decimal"
+                        min="0"
+                        step="0.01"
+                        placeholder="可留空"
+                      />
+                    </label>
+
+                    <label class="field">
+                      <span>十进制赔率</span>
+                      <input
+                        id="parlayLeg3Odds"
+                        name="parlayLeg3Odds"
+                        type="number"
+                        inputmode="decimal"
+                        min="1.01"
+                        step="0.01"
+                        placeholder="可留空"
+                      />
+                    </label>
+                  </div>
+                </div>
               </div>
             </div>
 
