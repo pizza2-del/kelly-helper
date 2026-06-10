@@ -604,6 +604,10 @@ code {
   font-family: "Cascadia Code", "Consolas", monospace;
 }
 
+.mobile-result-bar {
+  display: none;
+}
+
 @media (max-width: 980px) {
   .workspace {
     grid-template-columns: 1fr;
@@ -611,17 +615,65 @@ code {
 }
 
 @media (max-width: 640px) {
+  body {
+    padding-bottom: calc(92px + env(safe-area-inset-bottom));
+  }
+
   .shell {
-    width: min(100% - 22px, 100%);
-    padding: 16px 0 26px;
+    width: min(100% - 18px, 100%);
+    padding: 10px 0 22px;
+  }
+
+  .workspace,
+  .results-stack,
+  .calc-form {
+    gap: 12px;
+    margin-top: 12px;
   }
 
   .hero,
   .form-card,
   .result-card,
   .history-card {
-    padding: 20px;
-    border-radius: 22px;
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .hero h1 {
+    margin: 8px 0 8px;
+    font-size: 2rem;
+  }
+
+  .subtitle,
+  .mode-copy,
+  .section-head p,
+  .helper-copy,
+  .field-note {
+    line-height: 1.55;
+  }
+
+  .install-row {
+    margin-top: 14px;
+  }
+
+  .field,
+  .field-group {
+    gap: 7px;
+  }
+
+  .field-group,
+  .helper-metric,
+  .metric,
+  .formula-panel,
+  .history-item,
+  .parlay-leg {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .field input,
+  .field select {
+    padding: 12px 13px;
   }
 
   .field-grid,
@@ -645,9 +697,83 @@ code {
     width: 100%;
     display: grid;
     grid-template-columns: 1fr;
+    gap: 8px;
   }
 
-  .hero h1 {
-    font-size: 2.2rem;
+  .result-card {
+    scroll-margin-top: 12px;
+  }
+
+  .result-grid {
+    gap: 10px;
+  }
+
+  .metric-value {
+    margin-top: 6px;
+    font-size: 1.35rem;
+  }
+
+  .metric-note {
+    margin-top: 6px;
+  }
+
+  .notes,
+  .history-list {
+    gap: 8px;
+  }
+
+  .mobile-result-bar {
+    position: fixed;
+    z-index: 20;
+    left: 10px;
+    right: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    display: grid;
+    grid-template-columns: minmax(0, 0.7fr) minmax(0, 0.95fr) minmax(0, 1.25fr) auto;
+    gap: 8px;
+    align-items: center;
+    padding: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    border-radius: 18px;
+    background:
+      linear-gradient(135deg, rgba(255, 250, 244, 0.96), rgba(255, 226, 207, 0.96));
+    box-shadow: 0 16px 40px rgba(98, 53, 32, 0.24);
+    backdrop-filter: blur(18px);
+  }
+
+  .mobile-result-main {
+    min-width: 0;
+  }
+
+  .mobile-result-label {
+    display: block;
+    color: var(--muted);
+    font-size: 0.68rem;
+    line-height: 1.2;
+  }
+
+  .mobile-result-main strong {
+    display: block;
+    overflow: hidden;
+    margin-top: 3px;
+    color: var(--ink);
+    font-size: 0.9rem;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-result-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 0 12px;
+    border-radius: 999px;
+    color: #fff7f0;
+    background: linear-gradient(135deg, var(--accent) 0%, #ea8558 100%);
+    font-size: 0.82rem;
+    font-weight: 800;
+    text-decoration: none;
   }
 }

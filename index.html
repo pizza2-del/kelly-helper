@@ -883,7 +883,7 @@
         </section>
 
         <div class="results-stack">
-          <section class="card result-card" aria-live="polite">
+          <section class="card result-card" id="resultCard" aria-live="polite">
             <div class="section-head">
               <h2 id="resultTitle">标准凯利结果</h2>
               <p id="resultSummary">填写参数后会自动更新结果。</p>
@@ -963,6 +963,22 @@
         </div>
       </section>
     </main>
+
+    <aside class="mobile-result-bar" aria-live="polite">
+      <div class="mobile-result-main">
+        <span class="mobile-result-label">EV</span>
+        <strong id="mobileEvValue">--</strong>
+      </div>
+      <div class="mobile-result-main">
+        <span class="mobile-result-label">建议比例</span>
+        <strong id="mobileStakeRatio">--</strong>
+      </div>
+      <div class="mobile-result-main">
+        <span class="mobile-result-label">建议金额</span>
+        <strong id="mobileStakeAmount">--</strong>
+      </div>
+      <a class="mobile-result-link" href="#resultCard">详情</a>
+    </aside>
 
     <script type="module" src="./app.js"></script>
   </body>

@@ -123,6 +123,9 @@ const output = {
   stakeHint: document.querySelector("#stakeHint"),
   stakeAmount: document.querySelector("#stakeAmount"),
   amountHint: document.querySelector("#amountHint"),
+  mobileEvValue: document.querySelector("#mobileEvValue"),
+  mobileStakeRatio: document.querySelector("#mobileStakeRatio"),
+  mobileStakeAmount: document.querySelector("#mobileStakeAmount"),
   referenceLabel: document.querySelector("#referenceLabel"),
   referenceValue: document.querySelector("#referenceValue"),
   referenceHint: document.querySelector("#referenceHint"),
@@ -419,6 +422,11 @@ function renderResult(state) {
   output.stakeHint.textContent = state.stakeHint;
   output.stakeAmount.textContent = state.stakeAmount;
   output.amountHint.textContent = state.amountHint;
+  if (output.mobileEvValue && output.mobileStakeRatio && output.mobileStakeAmount) {
+    output.mobileEvValue.textContent = state.evValue;
+    output.mobileStakeRatio.textContent = state.stakeRatio;
+    output.mobileStakeAmount.textContent = state.stakeAmount;
+  }
   output.referenceLabel.textContent = state.referenceLabel;
   output.referenceValue.textContent = state.referenceValue;
   output.referenceHint.textContent = state.referenceHint;
