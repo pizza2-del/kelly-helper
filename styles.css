@@ -503,6 +503,19 @@ body::before {
   margin: 0;
 }
 
+.history-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.history-action-btn {
+  min-width: 72px;
+  padding: 8px 12px;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;

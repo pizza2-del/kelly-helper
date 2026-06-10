@@ -21,6 +21,8 @@ const binaryFields = document.querySelector("#binaryFields");
 const threeWayFields = document.querySelector("#threeWayFields");
 const calculateScoreHelperButton = document.querySelector("#calculateScoreHelperButton");
 const applyScoreHelperButton = document.querySelector("#applyScoreHelperButton");
+const calculateThreeWayHelperButton = document.querySelector("#calculateThreeWayHelperButton");
+const applyThreeWayHelperButton = document.querySelector("#applyThreeWayHelperButton");
 
 const standardInputs = {
   gainAmount: document.querySelector("#gainAmount"),
@@ -50,6 +52,13 @@ const worldInputs = {
   homeOdds: document.querySelector("#homeOdds"),
   drawOdds: document.querySelector("#drawOdds"),
   awayOdds: document.querySelector("#awayOdds"),
+  strengthLean: document.querySelector("#strengthLean"),
+  lineupLean: document.querySelector("#lineupLean"),
+  formLean: document.querySelector("#formLean"),
+  motivationLean: document.querySelector("#motivationLean"),
+  homeAdvLean: document.querySelector("#homeAdvLean"),
+  drawLean: document.querySelector("#drawLean"),
+  adjustmentScale: document.querySelector("#adjustmentScale"),
   worldBankroll: document.querySelector("#worldBankroll"),
   riskFactorWorld: document.querySelector("#riskFactorWorld"),
   maxStakePercent: document.querySelector("#maxStakePercent"),
@@ -91,12 +100,26 @@ const helperOutput = {
   status: document.querySelector("#helperApplyStatus"),
 };
 
+const threeWayHelperOutput = {
+  baseProbabilities: document.querySelector("#threeWayBaseProbabilities"),
+  baseHint: document.querySelector("#threeWayBaseHint"),
+  suggestedProbabilities: document.querySelector("#threeWaySuggestedProbabilities"),
+  suggestedHint: document.querySelector("#threeWaySuggestedHint"),
+  probabilityDelta: document.querySelector("#threeWayProbabilityDelta"),
+  deltaHint: document.querySelector("#threeWayDeltaHint"),
+  signal: document.querySelector("#threeWaySignal"),
+  signalHint: document.querySelector("#threeWaySignalHint"),
+  note: document.querySelector("#threeWayHelperNote"),
+  status: document.querySelector("#threeWayHelperStatus"),
+};
+
 const historyList = document.querySelector("#historyList");
 const historyEmpty = document.querySelector("#historyEmpty");
 
 let currentMode = "standard";
 let deferredInstallPrompt = null;
 let latestScoreHelper = null;
+let latestThreeWayHelper = null;
 
 const numberFormat = new Intl.NumberFormat("zh-CN", {
   maximumFractionDigits: 2,
@@ -121,6 +144,15 @@ function formatPercent(value) {
   }
 
   return `${(value * 100).toFixed(2).replace(/\.?0+$/, "")}%`;
+}
+
+function formatSignedPercent(value) {
+  if (!Number.isFinite(value)) {
+    return "--";
+  }
+
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${sign}${Math.abs(value * 100).toFixed(2).replace(/\.?0+$/, "")}%`;
 }
 
 function formatMoney(value) {
@@ -213,6 +245,45 @@ function normalizeProbabilitySet(rawValues, label) {
     values: scaledValues.map((value) => value / total),
     notes,
   };
+}
+
+function normalizeWeights(weights) {
+  const safeWeights = weights.map((value) => (Number.isFinite(value) && value > 0 ? value : 0.0001));
+  const total = safeWeights.reduce((sum, value) => sum + value, 0);
+  return safeWeights.map((value) => value / total);
+}
+
+function parseLeanValue(input) {
+  const value = parseNumber(input);
+  if (value === null) {
+    return 0;
+  }
+
+  return clamp(value, -10, 10);
+}
+
+function mixNumber(base, target, influence) {
+  return base + (target - base) * influence;
+}
+
+function limitDistributionShift(baseProbabilities, targetProbabilities, maxShift) {
+  const deltas = targetProbabilities.map((value, index) => value - baseProbabilities[index]);
+  const maxObservedShift = deltas.reduce((max, value) => Math.max(max, Math.abs(value)), 0);
+
+  if (!Number.isFinite(maxShift) || maxShift <= 0 || maxObservedShift <= maxShift) {
+    return targetProbabilities.slice();
+  }
+
+  const scale = maxShift / maxObservedShift;
+  return baseProbabilities.map((value, index) => value + deltas[index] * scale);
+}
+
+function formatThreeWayProbabilityLine(homeTeam, awayTeam, probabilities) {
+  return `${homeTeam} ${formatPercent(probabilities[0])} / 平 ${formatPercent(probabilities[1])} / ${awayTeam} ${formatPercent(probabilities[2])}`;
+}
+
+function formatThreeWayDeltaLine(homeTeam, awayTeam, deltas) {
+  return `${homeTeam} ${formatSignedPercent(deltas[0])} / 平 ${formatSignedPercent(deltas[1])} / ${awayTeam} ${formatSignedPercent(deltas[2])}`;
 }
 
 function createEmptyMetricState(mode, message) {
@@ -316,6 +387,22 @@ function renderScoreHelperEmpty(message) {
     "说明：这个辅助器基于预期进球做近似估值，目的是帮你先建立主观概率锚点，再回填到二元玩法的主观胜率。";
   helperOutput.status.textContent = "";
   applyScoreHelperButton.disabled = true;
+}
+
+function renderThreeWayHelperEmpty(message) {
+  latestThreeWayHelper = null;
+  threeWayHelperOutput.baseProbabilities.textContent = "--";
+  threeWayHelperOutput.baseHint.textContent = message;
+  threeWayHelperOutput.suggestedProbabilities.textContent = "--";
+  threeWayHelperOutput.suggestedHint.textContent = "结构化修正后会显示在这里";
+  threeWayHelperOutput.probabilityDelta.textContent = "--";
+  threeWayHelperOutput.deltaHint.textContent = "看你相对市场主要改动了哪一项";
+  threeWayHelperOutput.signal.textContent = "--";
+  threeWayHelperOutput.signalHint.textContent = "用于快速判断这场更偏主胜、平局还是客胜";
+  threeWayHelperOutput.note.textContent =
+    "说明：这不是自动预测器，而是把你的判断拆成固定维度，用加权修正叠加在市场基线之上，并限制单次偏离幅度。";
+  threeWayHelperOutput.status.textContent = "";
+  applyThreeWayHelperButton.disabled = true;
 }
 
 function factorial(value) {
@@ -498,6 +585,188 @@ function saveHistory(entries) {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(0, HISTORY_LIMIT)));
 }
 
+function formatHistoryTimestamp(timestamp, compact = false) {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return "--";
+  }
+
+  return date.toLocaleString(
+    "zh-CN",
+    compact
+      ? {
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        }
+      : {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        },
+  );
+}
+
+function formatStoredNumber(value, digits = 4) {
+  return Number.isFinite(value) ? formatNumber(value, digits) : "--";
+}
+
+function formatStoredPercent(value) {
+  return Number.isFinite(value) ? formatPercent(value) : "--";
+}
+
+function sanitizeFilenamePart(value) {
+  return String(value ?? "")
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40);
+}
+
+function buildHistoryExportFilename(entry) {
+  const date = new Date(entry.timestamp);
+  const stamp = Number.isNaN(date.getTime())
+    ? "record"
+    : [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, "0"),
+        String(date.getDate()).padStart(2, "0"),
+      ].join("") +
+      "-" +
+      [
+        String(date.getHours()).padStart(2, "0"),
+        String(date.getMinutes()).padStart(2, "0"),
+      ].join("");
+  const title = sanitizeFilenamePart(entry.title || entry.modeLabel || "record");
+
+  return `kelly-record-${stamp}-${title || "record"}.txt`;
+}
+
+function buildHistoryExportText(entry) {
+  const lines = [
+    "Kelly Helper",
+    "单条预测记录",
+    "",
+    `记录时间：${formatHistoryTimestamp(entry.timestamp)}`,
+    `模式：${entry.modeLabel ?? "--"}`,
+    `标题：${entry.title ?? "--"}`,
+    `明细：${entry.detail ?? "--"}`,
+    `结论：${entry.summary ?? "--"}`,
+    `建议仓位：${entry.stakeRatioText ?? "--"}`,
+    `建议金额：${entry.stakeAmountText ?? "--"}`,
+  ];
+
+  const meta = entry.exportMeta;
+  if (!meta || typeof meta !== "object") {
+    return lines.join("\n");
+  }
+
+  if (meta.type === "standard") {
+    lines.push("", "输入参数");
+    lines.push(`- 盈利金额：${formatStoredNumber(meta.gainAmount, 2)}`);
+    lines.push(`- 亏损本金：${formatStoredNumber(meta.lossAmount, 2)}`);
+    lines.push(`- 盈利概率：${formatStoredPercent(meta.winProbability)}`);
+    lines.push(`- 亏损概率：${formatStoredPercent(meta.lossProbability)}`);
+    lines.push(`- 总资金：${Number.isFinite(meta.bankroll) ? formatMoney(meta.bankroll) : "--"}`);
+    lines.push(`- 仓位系数：${formatStoredPercent(meta.riskFactor)}`);
+    lines.push("", "计算结果");
+    lines.push(`- 满凯利 f：${formatStoredNumber(meta.rawKelly)}`);
+    lines.push(`- 展示仓位：${formatStoredPercent(meta.displayedKelly)}`);
+    lines.push(`- EV：${formatStoredPercent(meta.expectedValue)}`);
+    lines.push(`- 保本胜率：${formatStoredPercent(meta.breakEvenProbability)}`);
+  }
+
+  if (meta.type === "worldBinary") {
+    lines.push("", "输入参数");
+    lines.push(`- 比赛：${meta.matchName || "--"}`);
+    lines.push(`- 投注选项：${meta.selection || "--"}`);
+    lines.push(`- 赔率：${formatStoredNumber(meta.odds, 3)}`);
+    lines.push(`- 主观胜率：${formatStoredPercent(meta.subjectiveProbability)}`);
+    lines.push(`- 总资金：${Number.isFinite(meta.bankroll) ? formatMoney(meta.bankroll) : "--"}`);
+    lines.push(`- 仓位系数：${formatStoredPercent(meta.riskFactor)}`);
+    lines.push(`- 单场上限：${formatStoredPercent(meta.maxStakePercent)}`);
+    lines.push("", "计算结果");
+    lines.push(`- 满凯利 f：${formatStoredNumber(meta.rawKelly)}`);
+    lines.push(`- 展示仓位：${formatStoredPercent(meta.displayedKelly)}`);
+    lines.push(`- EV：${formatStoredPercent(meta.expectedValue)}`);
+    lines.push(`- 公平赔率：${formatStoredNumber(meta.fairOdds, 3)}`);
+    lines.push(`- 庄家隐含概率：${formatStoredPercent(meta.impliedProbability)}`);
+    lines.push(`- 你的边际：${formatStoredPercent(meta.edge)}`);
+  }
+
+  if (meta.type === "worldThreeWay") {
+    lines.push("", "输入参数");
+    lines.push(`- 比赛：${meta.matchName || "--"}`);
+    lines.push(`- 主队：${meta.homeTeam || "--"}`);
+    lines.push(`- 客队：${meta.awayTeam || "--"}`);
+    lines.push(`- 主胜概率：${formatStoredPercent(meta.homeProbability)}`);
+    lines.push(`- 平局概率：${formatStoredPercent(meta.drawProbability)}`);
+    lines.push(`- 客胜概率：${formatStoredPercent(meta.awayProbability)}`);
+    lines.push(`- 主胜赔率：${formatStoredNumber(meta.homeOdds, 3)}`);
+    lines.push(`- 平局赔率：${formatStoredNumber(meta.drawOdds, 3)}`);
+    lines.push(`- 客胜赔率：${formatStoredNumber(meta.awayOdds, 3)}`);
+    lines.push(`- 总资金：${Number.isFinite(meta.bankroll) ? formatMoney(meta.bankroll) : "--"}`);
+    lines.push(`- 仓位系数：${formatStoredPercent(meta.riskFactor)}`);
+    lines.push(`- 单场上限：${formatStoredPercent(meta.maxStakePercent)}`);
+    lines.push("", "计算结果");
+    lines.push(`- 首选项：${meta.recommendedLabel || "观望"}`);
+    lines.push(`- 满凯利 f：${formatStoredNumber(meta.rawKelly)}`);
+    lines.push(`- 展示仓位：${formatStoredPercent(meta.displayedKelly)}`);
+    lines.push(`- EV：${formatStoredPercent(meta.expectedValue)}`);
+    lines.push(`- 公平赔率：${formatStoredNumber(meta.fairOdds, 3)}`);
+
+    if (Array.isArray(meta.options) && meta.options.length > 0) {
+      lines.push("", "三项比较");
+      meta.options.forEach((option, index) => {
+        lines.push(
+          `${index + 1}. ${option.label || "--"} | 概率 ${formatStoredPercent(option.probability)} | 赔率 ${formatStoredNumber(option.odds, 3)} | EV ${formatStoredPercent(option.expectedValue)} | Kelly ${formatStoredNumber(option.rawKelly)}`,
+        );
+      });
+    }
+  }
+
+  return lines.join("\n");
+}
+
+function downloadTextFile(filename, text) {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function exportHistoryEntry(entry) {
+  const text = buildHistoryExportText(entry);
+  const filename = buildHistoryExportFilename(entry);
+
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: entry.title || "预测记录",
+        text,
+      });
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        return;
+      }
+    }
+  }
+
+  downloadTextFile(filename, text);
+}
+
 function appendHistory(entry) {
   const entries = [entry, ...getHistory()].slice(0, HISTORY_LIMIT);
   saveHistory(entries);
@@ -509,7 +778,7 @@ function renderHistory() {
   historyList.innerHTML = "";
   historyEmpty.hidden = entries.length > 0;
 
-  entries.forEach((entry) => {
+  entries.forEach((entry, index) => {
     const item = document.createElement("li");
     item.className = "history-item";
 
@@ -520,16 +789,21 @@ function renderHistory() {
     badge.className = "badge";
     badge.textContent = entry.modeLabel;
 
+    const actions = document.createElement("div");
+    actions.className = "history-actions";
+
     const time = document.createElement("span");
     time.className = "history-time";
-    time.textContent = new Date(entry.timestamp).toLocaleString("zh-CN", {
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    time.textContent = formatHistoryTimestamp(entry.timestamp, true);
 
-    top.append(badge, time);
+    const exportButton = document.createElement("button");
+    exportButton.className = "text-btn history-action-btn";
+    exportButton.type = "button";
+    exportButton.dataset.exportIndex = String(index);
+    exportButton.textContent = "导出";
+
+    actions.append(time, exportButton);
+    top.append(badge, actions);
 
     const title = document.createElement("p");
     title.className = "history-title";
@@ -700,6 +974,19 @@ function calculateStandard(saveToHistory = false) {
       stakeRatioText: `建议 ${formatPercent(displayedKelly)}`,
       stakeAmountText: stakeAmount.value,
       timestamp: Date.now(),
+      exportMeta: {
+        type: "standard",
+        gainAmount,
+        lossAmount,
+        winProbability: p,
+        lossProbability: q,
+        bankroll,
+        riskFactor,
+        rawKelly,
+        displayedKelly,
+        expectedValue,
+        breakEvenProbability,
+      },
     });
   }
 
@@ -799,6 +1086,22 @@ function calculateWorldBinary(saveToHistory = false) {
       stakeRatioText: `建议 ${formatPercent(displayedKelly)}`,
       stakeAmountText: stakeAmount.value,
       timestamp: Date.now(),
+      exportMeta: {
+        type: "worldBinary",
+        matchName,
+        selection,
+        odds,
+        subjectiveProbability: p,
+        bankroll,
+        riskFactor,
+        maxStakePercent: capRatio,
+        rawKelly,
+        displayedKelly,
+        expectedValue,
+        fairOdds,
+        impliedProbability,
+        edge,
+      },
     });
   }
 
@@ -932,6 +1235,33 @@ function calculateWorldThreeWay(saveToHistory = false) {
       stakeRatioText: hasPositiveEdge ? `建议 ${formatPercent(bestOption.displayedKelly)}` : "建议观望",
       stakeAmountText: hasPositiveEdge ? stakeAmount.value : "--",
       timestamp: Date.now(),
+      exportMeta: {
+        type: "worldThreeWay",
+        matchName: matchLabel,
+        homeTeam,
+        awayTeam,
+        homeProbability,
+        drawProbability,
+        awayProbability,
+        homeOdds: oddsValues[0],
+        drawOdds: oddsValues[1],
+        awayOdds: oddsValues[2],
+        bankroll,
+        riskFactor,
+        maxStakePercent: capRatio,
+        recommendedLabel: hasPositiveEdge ? bestOption.label : "瑙傛湜",
+        rawKelly: hasPositiveEdge ? bestOption.rawKelly : 0,
+        displayedKelly: hasPositiveEdge ? bestOption.displayedKelly : 0,
+        expectedValue: bestOption.expectedValue,
+        fairOdds: bestOption.fairOdds,
+        options: options.map((option) => ({
+          label: option.label,
+          probability: option.probability,
+          odds: option.odds,
+          expectedValue: option.expectedValue,
+          rawKelly: option.rawKelly,
+        })),
+      },
     });
   }
 
@@ -948,9 +1278,199 @@ function calculateWorldCup(saveToHistory = false) {
 
 function refreshCurrentCalculation(saveToHistory = false) {
   refreshScoreHelper();
+  if (worldInputs.marketType.value === "threeWay") {
+    refreshThreeWayHelper();
+  } else {
+    renderThreeWayHelperEmpty("填入主胜 / 平局 / 客胜赔率后，这里会先给出市场基线概率。");
+  }
   return currentMode === "worldCup"
     ? calculateWorldCup(saveToHistory)
     : calculateStandard(saveToHistory);
+}
+
+function refreshThreeWayHelper() {
+  const homeTeam = worldInputs.homeTeam.value.trim() || "主队";
+  const awayTeam = worldInputs.awayTeam.value.trim() || "客队";
+  const oddsValues = [
+    parseNumber(worldInputs.homeOdds),
+    parseNumber(worldInputs.drawOdds),
+    parseNumber(worldInputs.awayOdds),
+  ];
+
+  if (oddsValues.some((value) => value === null)) {
+    renderThreeWayHelperEmpty("填入主胜 / 平局 / 客胜赔率后，这里会先给出市场基线概率。");
+    return null;
+  }
+
+  if (oddsValues.some((value) => value <= 1)) {
+    renderThreeWayHelperEmpty("胜平负三项赔率都必须大于 1。");
+    return null;
+  }
+
+  const strengthLean = parseLeanValue(worldInputs.strengthLean);
+  const lineupLean = parseLeanValue(worldInputs.lineupLean);
+  const formLean = parseLeanValue(worldInputs.formLean);
+  const motivationLean = parseLeanValue(worldInputs.motivationLean);
+  const homeAdvLean = parseLeanValue(worldInputs.homeAdvLean);
+  const drawLean = parseLeanValue(worldInputs.drawLean);
+  const adjustmentScale = Number.parseFloat(worldInputs.adjustmentScale.value || "1");
+
+  const baseProbabilities = normalizeWeights(oddsValues.map((value) => 1 / value));
+  const bookmakerMargin = oddsValues.reduce((sum, value) => sum + 1 / value, 0) - 1;
+  const directionalFactors = [
+    { key: "strength", label: "实力差", value: strengthLean, weight: 0.35 },
+    { key: "lineup", label: "阵容伤停", value: lineupLean, weight: 0.25 },
+    { key: "form", label: "近期状态", value: formLean, weight: 0.15 },
+    { key: "motivation", label: "战意赛程", value: motivationLean, weight: 0.15 },
+    { key: "homeAdv", label: "主客场旅行", value: homeAdvLean, weight: 0.1 },
+  ];
+  const directionalScore = directionalFactors.reduce(
+    (sum, factor) => sum + (factor.value / 10) * factor.weight,
+    0,
+  );
+  const drawScore = drawLean / 10;
+  const homeAwayPool = baseProbabilities[0] + baseProbabilities[2];
+  const homePoolShare = homeAwayPool > 0 ? baseProbabilities[0] / homeAwayPool : 0.5;
+  const awayPoolShare = 1 - homePoolShare;
+  const marketGap = baseProbabilities[0] - baseProbabilities[2];
+  const marketConfidence = clamp(Math.abs(marketGap) / 0.3, 0, 1);
+  const directionalShift = directionalScore * 0.09 * adjustmentScale;
+  const drawShift = drawScore * 0.06 * adjustmentScale;
+  const rawTargetProbabilities = normalizeWeights([
+    Math.max(
+      0.0001,
+      baseProbabilities[0] + directionalShift - drawShift * homePoolShare,
+    ),
+    Math.max(0.0001, baseProbabilities[1] + drawShift),
+    Math.max(
+      0.0001,
+      baseProbabilities[2] - directionalShift - drawShift * awayPoolShare,
+    ),
+  ]);
+  const targetInfluence = clamp(
+    0.42 + (1 - marketConfidence) * 0.18 + (adjustmentScale - 1) * 0.14,
+    0.32,
+    0.65,
+  );
+  const blendedProbabilities = normalizeWeights(
+    baseProbabilities.map((value, index) =>
+      mixNumber(value, rawTargetProbabilities[index], targetInfluence),
+    ),
+  );
+  const maxShift = clamp(0.05 + (adjustmentScale - 1) * 0.05, 0.04, 0.065);
+  const suggestedProbabilities = limitDistributionShift(
+    baseProbabilities,
+    blendedProbabilities,
+    maxShift,
+  );
+
+  const deltas = suggestedProbabilities.map((value, index) => value - baseProbabilities[index]);
+  const labels = [`${homeTeam}胜`, "平局", `${awayTeam}胜`];
+  const marketFavoriteIndex = baseProbabilities.reduce(
+    (bestIndex, value, index, values) => (value > values[bestIndex] ? index : bestIndex),
+    0,
+  );
+  const dominantIndex = suggestedProbabilities.reduce(
+    (bestIndex, value, index, values) => (value > values[bestIndex] ? index : bestIndex),
+    0,
+  );
+  const deltaIndex = deltas.reduce(
+    (bestIndex, value, index, values) =>
+      Math.abs(value) > Math.abs(values[bestIndex]) ? index : bestIndex,
+    0,
+  );
+  const maxAbsDelta = deltas.reduce((max, value) => Math.max(max, Math.abs(value)), 0);
+  const strongestDirectionalFactor = directionalFactors.reduce((best, factor) => {
+    const currentImpact = Math.abs((factor.value / 10) * factor.weight);
+    const bestImpact = Math.abs((best.value / 10) * best.weight);
+    return currentImpact > bestImpact ? factor : best;
+  }, directionalFactors[0]);
+  const strongestImpactLabel =
+    Math.abs(drawShift) > Math.abs((strongestDirectionalFactor.value / 10) * strongestDirectionalFactor.weight * 0.09 * adjustmentScale)
+      ? "平局倾向"
+      : strongestDirectionalFactor.label;
+  const strongestImpactSummary =
+    strongestImpactLabel === "平局倾向"
+      ? drawLean === 0
+        ? "当前没有明显的平局修正"
+        : `最大修正来自平局倾向，当前${drawLean > 0 ? "上调" : "下调"}平局 ${Math.abs(drawLean)} 分`
+      : strongestDirectionalFactor.value === 0
+        ? "当前没有明显的主客方向修正"
+        : `最大修正来自${strongestDirectionalFactor.label}，当前偏${strongestDirectionalFactor.value > 0 ? homeTeam : awayTeam} ${Math.abs(strongestDirectionalFactor.value)} 分`;
+  const directionSummary =
+    directionalScore > 0.08
+      ? `整体偏向 ${homeTeam}`
+      : directionalScore < -0.08
+        ? `整体偏向 ${awayTeam}`
+        : "主客方向仍接近市场";
+  const drawSummary =
+    drawScore > 0.12
+      ? "你额外抬高了平局权重"
+      : drawScore < -0.12
+        ? "你额外压低了平局权重"
+        : "你对平局基本保持中性";
+  const deviationSummary =
+    maxAbsDelta < 0.012
+      ? "建议结果仍非常贴近市场"
+      : maxAbsDelta < 0.03
+        ? "建议结果与市场有适度偏离"
+        : "建议结果已明显偏离市场，建议重点复核依据";
+  const scaleSummary =
+    adjustmentScale > 1
+      ? "当前使用偏激进修正"
+      : adjustmentScale < 1
+        ? "当前使用偏保守修正"
+        : "当前使用标准修正";
+  const switchedFavorite = dominantIndex !== marketFavoriteIndex;
+
+  latestThreeWayHelper = {
+    homeTeam,
+    awayTeam,
+    baseProbabilities,
+    suggestedProbabilities,
+    deltas,
+    labels,
+    dominantIndex,
+    marketFavoriteIndex,
+    deltaIndex,
+    directionalScore,
+    drawScore,
+    maxShift,
+    bookmakerMargin,
+  };
+
+  threeWayHelperOutput.baseProbabilities.textContent = formatThreeWayProbabilityLine(
+    homeTeam,
+    awayTeam,
+    baseProbabilities,
+  );
+  threeWayHelperOutput.baseHint.textContent = `基线来自当前三项赔率去水后的隐含概率，当前水位约 ${formatPercent(bookmakerMargin)}。`;
+  threeWayHelperOutput.suggestedProbabilities.textContent = formatThreeWayProbabilityLine(
+    homeTeam,
+    awayTeam,
+    suggestedProbabilities,
+  );
+  threeWayHelperOutput.suggestedHint.textContent =
+    `${scaleSummary}，并自动向赔率基线回拉，避免一次性偏离过头。`;
+  threeWayHelperOutput.probabilityDelta.textContent = formatThreeWayDeltaLine(
+    homeTeam,
+    awayTeam,
+    deltas,
+  );
+  threeWayHelperOutput.deltaHint.textContent = `这个偏移表示你相对市场基线做了多少主观调整，单项最大偏移限制在 ${formatPercent(maxShift)} 以内。`;
+  threeWayHelperOutput.signal.textContent = `${labels[dominantIndex]} 概率最高`;
+  threeWayHelperOutput.signalHint.textContent =
+    switchedFavorite
+      ? `当前结果已从市场原先更看好的 ${labels[marketFavoriteIndex]} 切换到 ${labels[dominantIndex]}。`
+      : Math.abs(deltas[deltaIndex]) < 0.005
+        ? "你的判断与市场基线基本一致。"
+        : `你对 ${labels[deltaIndex]} 的偏移最明显。`;
+  threeWayHelperOutput.note.textContent =
+    `${strongestImpactSummary}。${directionSummary}；${drawSummary}。${deviationSummary}。建议把大多数单项修正控制在 3 分内，只有阵容和临场伤停信息很明确时再放大修正。`;
+  threeWayHelperOutput.status.textContent = "";
+  applyThreeWayHelperButton.disabled = false;
+
+  return latestThreeWayHelper;
 }
 
 function resetStandardForm() {
@@ -1051,6 +1571,21 @@ clearHistoryButton.addEventListener("click", () => {
   renderHistory();
 });
 
+historyList.addEventListener("click", async (event) => {
+  const exportButton = event.target.closest("[data-export-index]");
+  if (!exportButton) {
+    return;
+  }
+
+  const index = Number.parseInt(exportButton.dataset.exportIndex ?? "", 10);
+  const entry = getHistory()[index];
+  if (!entry) {
+    return;
+  }
+
+  await exportHistoryEntry(entry);
+});
+
 calculateScoreHelperButton.addEventListener("click", () => {
   refreshScoreHelper();
   if (latestScoreHelper) {
@@ -1074,6 +1609,39 @@ applyScoreHelperButton.addEventListener("click", () => {
   refreshCurrentCalculation(false);
   worldInputs.subjectiveProbability.scrollIntoView({ behavior: "smooth", block: "center" });
   worldInputs.subjectiveProbability.focus();
+});
+
+calculateThreeWayHelperButton.addEventListener("click", () => {
+  const helper = refreshThreeWayHelper();
+  if (!helper) {
+    threeWayHelperOutput.status.textContent = "请先填入完整的胜平负赔率。";
+    return;
+  }
+
+  threeWayHelperOutput.status.textContent =
+    `已生成建议概率，可直接回填到主胜 / 平局 / 客胜输入框。当前最高的是 ${helper.labels[helper.dominantIndex]}。`;
+});
+
+applyThreeWayHelperButton.addEventListener("click", () => {
+  if (!latestThreeWayHelper) {
+    return;
+  }
+
+  worldInputs.homeProbability.value = (latestThreeWayHelper.suggestedProbabilities[0] * 100)
+    .toFixed(2)
+    .replace(/\.?0+$/, "");
+  worldInputs.drawProbability.value = (latestThreeWayHelper.suggestedProbabilities[1] * 100)
+    .toFixed(2)
+    .replace(/\.?0+$/, "");
+  worldInputs.awayProbability.value = (latestThreeWayHelper.suggestedProbabilities[2] * 100)
+    .toFixed(2)
+    .replace(/\.?0+$/, "");
+  threeWayHelperOutput.status.textContent =
+    `已回填建议概率：${latestThreeWayHelper.labels[0]} ${formatPercent(latestThreeWayHelper.suggestedProbabilities[0])} / ${latestThreeWayHelper.labels[1]} ${formatPercent(latestThreeWayHelper.suggestedProbabilities[1])} / ${latestThreeWayHelper.labels[2]} ${formatPercent(latestThreeWayHelper.suggestedProbabilities[2])}`;
+  saveState();
+  refreshCurrentCalculation(false);
+  worldInputs.homeProbability.scrollIntoView({ behavior: "smooth", block: "center" });
+  worldInputs.homeProbability.focus();
 });
 
 installButton.addEventListener("click", async () => {

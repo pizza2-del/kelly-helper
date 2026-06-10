@@ -451,6 +451,163 @@
                   </label>
                 </div>
               </div>
+
+              <div class="field-group helper-group">
+                <div class="helper-head">
+                  <div>
+                    <p class="field-group-title">胜平负概率评估辅助器</p>
+                    <p class="helper-copy">
+                      先用当前三项赔率换算市场基线，再按实力、阵容、状态、战意、主客场和平局倾向做结构化修正。适合把主观判断拆开，减少纯感觉填概率。
+                    </p>
+                  </div>
+                  <div class="helper-actions">
+                    <button class="text-btn" type="button" id="calculateThreeWayHelperButton">
+                      生成建议概率
+                    </button>
+                    <button class="text-btn" type="button" id="applyThreeWayHelperButton">
+                      回填到胜平负
+                    </button>
+                  </div>
+                </div>
+
+                <div class="field-grid">
+                  <label class="field">
+                    <span>实力差修正（偏主队）</span>
+                    <input
+                      id="strengthLean"
+                      name="strengthLean"
+                      type="number"
+                      inputmode="decimal"
+                      min="-10"
+                      max="10"
+                      step="1"
+                      value="0"
+                      placeholder="正数偏主队，负数偏客队"
+                    />
+                  </label>
+
+                  <label class="field">
+                    <span>阵容伤停修正（偏主队）</span>
+                    <input
+                      id="lineupLean"
+                      name="lineupLean"
+                      type="number"
+                      inputmode="decimal"
+                      min="-10"
+                      max="10"
+                      step="1"
+                      value="0"
+                      placeholder="例如 主队首发更完整填 3"
+                    />
+                  </label>
+                </div>
+
+                <div class="field-grid">
+                  <label class="field">
+                    <span>近期状态修正（偏主队）</span>
+                    <input
+                      id="formLean"
+                      name="formLean"
+                      type="number"
+                      inputmode="decimal"
+                      min="-10"
+                      max="10"
+                      step="1"
+                      value="0"
+                      placeholder="例如 主队状态更好填 2"
+                    />
+                  </label>
+
+                  <label class="field">
+                    <span>战意赛程修正（偏主队）</span>
+                    <input
+                      id="motivationLean"
+                      name="motivationLean"
+                      type="number"
+                      inputmode="decimal"
+                      min="-10"
+                      max="10"
+                      step="1"
+                      value="0"
+                      placeholder="例如 客队轮换更多填 2"
+                    />
+                  </label>
+                </div>
+
+                <div class="field-grid">
+                  <label class="field">
+                    <span>主客场旅行修正（偏主队）</span>
+                    <input
+                      id="homeAdvLean"
+                      name="homeAdvLean"
+                      type="number"
+                      inputmode="decimal"
+                      min="-10"
+                      max="10"
+                      step="1"
+                      value="0"
+                      placeholder="例如 主场优势明显填 2"
+                    />
+                  </label>
+
+                  <label class="field">
+                    <span>平局倾向修正</span>
+                    <input
+                      id="drawLean"
+                      name="drawLean"
+                      type="number"
+                      inputmode="decimal"
+                      min="-10"
+                      max="10"
+                      step="1"
+                      value="0"
+                      placeholder="正数提高平局，负数降低平局"
+                    />
+                  </label>
+                </div>
+
+                <div class="field-grid">
+                  <label class="field">
+                    <span>修正强度</span>
+                    <select id="adjustmentScale" name="adjustmentScale">
+                      <option value="0.7">保守</option>
+                      <option value="1" selected>标准</option>
+                      <option value="1.3">激进</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div class="helper-grid">
+                  <article class="helper-metric">
+                    <span class="metric-label">市场基线概率</span>
+                    <strong class="metric-value helper-list" id="threeWayBaseProbabilities">--</strong>
+                    <small class="metric-note" id="threeWayBaseHint">等待输入主胜 / 平局 / 客胜赔率</small>
+                  </article>
+
+                  <article class="helper-metric">
+                    <span class="metric-label">建议概率</span>
+                    <strong class="metric-value helper-list" id="threeWaySuggestedProbabilities">--</strong>
+                    <small class="metric-note" id="threeWaySuggestedHint">结构化修正后会显示在这里</small>
+                  </article>
+
+                  <article class="helper-metric">
+                    <span class="metric-label">相对基线偏移</span>
+                    <strong class="metric-value helper-list" id="threeWayProbabilityDelta">--</strong>
+                    <small class="metric-note" id="threeWayDeltaHint">看你相对市场主要改动了哪一项</small>
+                  </article>
+
+                  <article class="helper-metric">
+                    <span class="metric-label">修正结论</span>
+                    <strong class="metric-value helper-list" id="threeWaySignal">--</strong>
+                    <small class="metric-note" id="threeWaySignalHint">用于快速判断这场更偏主胜、平局还是客胜</small>
+                  </article>
+                </div>
+
+                <p class="field-note" id="threeWayHelperNote">
+                  说明：这不是替你自动预测赛果，而是把你的判断拆成几个固定维度，并始终从赔率基线出发，减少主观概率漂移。
+                </p>
+                <p class="helper-status" id="threeWayHelperStatus"></p>
+              </div>
             </div>
 
             <div class="field-group">
