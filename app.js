@@ -1,6 +1,35 @@
 const STORAGE_KEY = "kelly-position-helper-state-v3";
 const HISTORY_KEY = "kelly-position-helper-history-v1";
 const HISTORY_LIMIT = 12;
+const DEFAULT_WORLD_SINGLE_CAP_PERCENT = 5;
+const DEFAULT_WORLD_DAILY_CAP_PERCENT = 12;
+const EPSILON = 0.000001;
+
+const reviewStatusLabels = {
+  pending: "未复盘",
+  win: "赢",
+  loss: "输",
+  push: "走水",
+  skip: "跳过",
+};
+
+const confidenceRules = {
+  low: {
+    label: "低信心",
+    cap: 0.25,
+    note: "最多按四分之一凯利执行",
+  },
+  medium: {
+    label: "中信心",
+    cap: 0.5,
+    note: "最多按半凯利执行",
+  },
+  high: {
+    label: "高信心",
+    cap: 1,
+    note: "允许使用当前选择的仓位系数",
+  },
+};
 
 const modeCopyMap = {
   standard: "继续沿用你原来的输入方式：盈利金额、亏损本金、盈利概率、亏损概率。",
@@ -62,6 +91,11 @@ const worldInputs = {
   worldBankroll: document.querySelector("#worldBankroll"),
   riskFactorWorld: document.querySelector("#riskFactorWorld"),
   maxStakePercent: document.querySelector("#maxStakePercent"),
+  dailyStakeUsed: document.querySelector("#dailyStakeUsed"),
+  dailyMaxPercent: document.querySelector("#dailyMaxPercent"),
+  tournamentStakeUsed: document.querySelector("#tournamentStakeUsed"),
+  losingStreak: document.querySelector("#losingStreak"),
+  confidenceLevel: document.querySelector("#confidenceLevel"),
 };
 
 const output = {
@@ -113,8 +147,21 @@ const threeWayHelperOutput = {
   status: document.querySelector("#threeWayHelperStatus"),
 };
 
+const riskOutput = {
+  dailyRemaining: document.querySelector("#riskDailyRemaining"),
+  dailyHint: document.querySelector("#riskDailyHint"),
+  tournamentExposure: document.querySelector("#riskTournamentExposure"),
+  tournamentHint: document.querySelector("#riskTournamentHint"),
+  streakGuard: document.querySelector("#riskStreakGuard"),
+  streakHint: document.querySelector("#riskStreakHint"),
+  confidenceHint: document.querySelector("#riskConfidenceHint"),
+  confidenceNote: document.querySelector("#riskConfidenceNote"),
+  note: document.querySelector("#riskPanelNote"),
+};
+
 const historyList = document.querySelector("#historyList");
 const historyEmpty = document.querySelector("#historyEmpty");
+const reviewSummary = document.querySelector("#reviewSummary");
 const historyStatus = document.querySelector("#historyStatus");
 
 let currentMode = "standard";
@@ -526,11 +573,21 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(getStateSnapshot()));
 }
 
-function restoreState() {
-  standardInputs.riskFactor.value = "0.5";
+function applyDefaultWorldValues() {
   worldInputs.marketType.value = "binary";
   worldInputs.riskFactorWorld.value = "0.5";
-  worldInputs.maxStakePercent.value = "5";
+  worldInputs.maxStakePercent.value = String(DEFAULT_WORLD_SINGLE_CAP_PERCENT);
+  worldInputs.dailyMaxPercent.value = String(DEFAULT_WORLD_DAILY_CAP_PERCENT);
+  worldInputs.confidenceLevel.value = "medium";
+}
+
+function applyDefaultFormValues() {
+  standardInputs.riskFactor.value = "0.5";
+  applyDefaultWorldValues();
+}
+
+function restoreState() {
+  applyDefaultFormValues();
 
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
@@ -559,12 +616,13 @@ function restoreState() {
     if (worldInputs.marketType.value !== "binary" && worldInputs.marketType.value !== "threeWay") {
       worldInputs.marketType.value = "binary";
     }
+
+    if (!confidenceRules[worldInputs.confidenceLevel.value]) {
+      worldInputs.confidenceLevel.value = "medium";
+    }
   } catch {
     currentMode = "standard";
-    standardInputs.riskFactor.value = "0.5";
-    worldInputs.marketType.value = "binary";
-    worldInputs.riskFactorWorld.value = "0.5";
-    worldInputs.maxStakePercent.value = "5";
+    applyDefaultFormValues();
   }
 }
 
@@ -608,8 +666,58 @@ function formatHistoryTimestamp(timestamp, compact = false) {
           hour: "2-digit",
           minute: "2-digit",
           second: "2-digit",
-        },
+      },
   );
+}
+
+function getReviewStatus(entry) {
+  return reviewStatusLabels[entry.reviewStatus] ? entry.reviewStatus : "pending";
+}
+
+function formatReviewMoney(value) {
+  if (!Number.isFinite(value)) {
+    return "未填盈亏";
+  }
+
+  return value > 0 ? `+${formatMoney(value)}` : formatMoney(value);
+}
+
+function renderReviewSummary(entries) {
+  const reviewedEntries = entries.filter((entry) => getReviewStatus(entry) !== "pending");
+  const wins = reviewedEntries.filter((entry) => getReviewStatus(entry) === "win").length;
+  const losses = reviewedEntries.filter((entry) => getReviewStatus(entry) === "loss").length;
+  const pushes = reviewedEntries.filter((entry) => getReviewStatus(entry) === "push").length;
+  const skips = reviewedEntries.filter((entry) => getReviewStatus(entry) === "skip").length;
+  const settledEntries = reviewedEntries.filter((entry) => getReviewStatus(entry) !== "skip");
+  const netPnl = settledEntries.reduce((sum, entry) => {
+    const pnl = Number.parseFloat(entry.reviewPnl);
+    return Number.isFinite(pnl) ? sum + pnl : sum;
+  }, 0);
+  const settledCount = wins + losses;
+  const hitRate = settledCount > 0 ? wins / settledCount : null;
+
+  reviewSummary.textContent =
+    entries.length === 0
+      ? "复盘：等待记录"
+      : `复盘：已复盘 ${reviewedEntries.length}/${entries.length} · 赢 ${wins} 输 ${losses} 走水 ${pushes} 跳过 ${skips} · 命中率 ${hitRate === null ? "--" : formatPercent(hitRate)} · 净盈亏 ${formatReviewMoney(netPnl)}`;
+}
+
+function updateHistoryReview(index, patch) {
+  const entries = getHistory();
+  if (index < 0 || index >= entries.length) {
+    return null;
+  }
+
+  const nextEntry = {
+    ...entries[index],
+    ...patch,
+    reviewedAt: Date.now(),
+  };
+
+  entries[index] = nextEntry;
+  saveHistory(entries);
+  renderHistory();
+  return nextEntry;
 }
 
 function deleteHistoryEntry(index) {
@@ -625,7 +733,14 @@ function deleteHistoryEntry(index) {
 }
 
 function appendHistory(entry) {
-  const entries = [entry, ...getHistory()].slice(0, HISTORY_LIMIT);
+  const entries = [
+    {
+      reviewStatus: "pending",
+      reviewPnl: null,
+      ...entry,
+    },
+    ...getHistory(),
+  ].slice(0, HISTORY_LIMIT);
   saveHistory(entries);
   historyStatus.textContent = "";
   renderHistory();
@@ -635,6 +750,7 @@ function renderHistory() {
   const entries = getHistory();
   historyList.innerHTML = "";
   historyEmpty.hidden = entries.length > 0;
+  renderReviewSummary(entries);
 
   entries.forEach((entry, index) => {
     const item = document.createElement("li");
@@ -683,7 +799,57 @@ function renderHistory() {
     amount.textContent = entry.stakeAmountText;
 
     bottom.append(meta, amount);
-    item.append(top, title, detail, bottom);
+
+    const reviewStatus = getReviewStatus(entry);
+    const reviewPnl = Number.parseFloat(entry.reviewPnl);
+    const review = document.createElement("div");
+    review.className = "history-review";
+
+    const reviewTitle = document.createElement("p");
+    reviewTitle.className = "history-review-title";
+    reviewTitle.textContent = `赛后复盘：${reviewStatusLabels[reviewStatus]} · ${formatReviewMoney(reviewPnl)}`;
+
+    const reviewGrid = document.createElement("div");
+    reviewGrid.className = "history-review-grid";
+
+    const statusField = document.createElement("label");
+    statusField.className = "field history-review-field";
+
+    const statusLabel = document.createElement("span");
+    statusLabel.textContent = "赛后结果";
+
+    const statusSelect = document.createElement("select");
+    statusSelect.dataset.reviewStatusIndex = String(index);
+
+    Object.entries(reviewStatusLabels).forEach(([value, label]) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      option.selected = value === reviewStatus;
+      statusSelect.append(option);
+    });
+
+    statusField.append(statusLabel, statusSelect);
+
+    const pnlField = document.createElement("label");
+    pnlField.className = "field history-review-field";
+
+    const pnlLabel = document.createElement("span");
+    pnlLabel.textContent = "实际盈亏";
+
+    const pnlInput = document.createElement("input");
+    pnlInput.type = "number";
+    pnlInput.inputMode = "decimal";
+    pnlInput.step = "0.01";
+    pnlInput.placeholder = "盈利填正数，亏损填负数";
+    pnlInput.value = Number.isFinite(reviewPnl) ? String(reviewPnl) : "";
+    pnlInput.dataset.reviewPnlIndex = String(index);
+
+    pnlField.append(pnlLabel, pnlInput);
+    reviewGrid.append(statusField, pnlField);
+    review.append(reviewTitle, reviewGrid);
+
+    item.append(top, title, detail, bottom, review);
     historyList.append(item);
   });
 }
@@ -707,16 +873,178 @@ function updateWorldMarketUI() {
   threeWayFields.hidden = !isThreeWay;
 }
 
-function createStakeHints(adjustedKelly, displayedKelly, capRatio, riskFactorLabel) {
-  if (adjustedKelly <= 0) {
+function getPercentRatio(value, fallbackPercent) {
+  return clamp(((value ?? fallbackPercent) || 0) / 100, 0, 1);
+}
+
+function getNonNegativeAmount(value) {
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function getLosingStreakRule(streak) {
+  if (streak >= 3) {
+    return {
+      factor: 0.5,
+      label: "强保护",
+      hint: "连续亏损 3 场以上，实战仓位减半",
+    };
+  }
+
+  if (streak === 2) {
+    return {
+      factor: 0.75,
+      label: "轻保护",
+      hint: "连续亏损 2 场，实战仓位降至 75%",
+    };
+  }
+
+  return {
+    factor: 1,
+    label: "正常",
+    hint: "连续亏损 0-1 场，不额外降档",
+  };
+}
+
+function getWorldRiskSettings() {
+  const bankroll = parseNumber(worldInputs.worldBankroll);
+  const maxStakePercent = parseNumber(worldInputs.maxStakePercent);
+  const dailyMaxPercent = parseNumber(worldInputs.dailyMaxPercent);
+  const dailyStakeUsed = getNonNegativeAmount(parseNumber(worldInputs.dailyStakeUsed));
+  const tournamentStakeUsed = getNonNegativeAmount(parseNumber(worldInputs.tournamentStakeUsed));
+  const losingStreak = Math.max(0, Math.floor(parseNumber(worldInputs.losingStreak) ?? 0));
+  const riskFactor = Number.parseFloat(worldInputs.riskFactorWorld.value || "0.5");
+  const confidenceRule = confidenceRules[worldInputs.confidenceLevel.value] ?? confidenceRules.medium;
+  const streakRule = getLosingStreakRule(losingStreak);
+  const singleCapRatio = getPercentRatio(maxStakePercent, DEFAULT_WORLD_SINGLE_CAP_PERCENT);
+  const dailyMaxRatio = getPercentRatio(dailyMaxPercent, DEFAULT_WORLD_DAILY_CAP_PERCENT);
+  const hasBankroll = Number.isFinite(bankroll) && bankroll > 0;
+  const dailyMaxAmount = hasBankroll ? bankroll * dailyMaxRatio : null;
+  const dailyRemainingAmount = hasBankroll
+    ? Math.max(0, dailyMaxAmount - dailyStakeUsed)
+    : null;
+  const dailyRemainingRatio = hasBankroll ? dailyRemainingAmount / bankroll : null;
+  const tournamentExposureRatio = hasBankroll ? tournamentStakeUsed / bankroll : null;
+
+  return {
+    bankroll,
+    hasBankroll,
+    riskFactor: Number.isFinite(riskFactor) ? clamp(riskFactor, 0, 1) : 0.5,
+    riskFactorLabel: getSelectedText(worldInputs.riskFactorWorld),
+    confidenceRule,
+    streakRule,
+    singleCapRatio,
+    dailyMaxRatio,
+    dailyStakeUsed,
+    dailyMaxAmount,
+    dailyRemainingAmount,
+    dailyRemainingRatio,
+    tournamentStakeUsed,
+    tournamentExposureRatio,
+    losingStreak,
+  };
+}
+
+function renderWorldRiskPanel(settings = getWorldRiskSettings(), control = null) {
+  if (settings.hasBankroll) {
+    riskOutput.dailyRemaining.textContent = `${formatMoney(settings.dailyRemainingAmount)} / ${formatPercent(settings.dailyMaxRatio)}`;
+    riskOutput.dailyHint.textContent =
+      settings.dailyRemainingAmount <= 0
+        ? "今日额度已用完，建议停止加仓"
+        : `单日上限 ${formatMoney(settings.dailyMaxAmount)}，已用 ${formatMoney(settings.dailyStakeUsed)}`;
+    riskOutput.tournamentExposure.textContent = formatPercent(settings.tournamentExposureRatio);
+    riskOutput.tournamentHint.textContent =
+      settings.tournamentExposureRatio >= 1
+        ? `累计投入 ${formatMoney(settings.tournamentStakeUsed)}，已经超过当前总资金`
+        : settings.tournamentExposureRatio >= 0.5
+          ? `累计投入 ${formatMoney(settings.tournamentStakeUsed)}，后续建议明显降频`
+          : `累计投入 ${formatMoney(settings.tournamentStakeUsed)}，用于观察整届暴露`;
+  } else {
+    riskOutput.dailyRemaining.textContent = "--";
+    riskOutput.dailyHint.textContent = "填写总资金后显示单日剩余额度";
+    riskOutput.tournamentExposure.textContent = "--";
+    riskOutput.tournamentHint.textContent = "填写总资金后显示本届累计投入占比";
+  }
+
+  riskOutput.streakGuard.textContent =
+    settings.streakRule.factor === 1
+      ? settings.streakRule.label
+      : `${settings.streakRule.label} · ${formatPercent(settings.streakRule.factor)}`;
+  riskOutput.streakHint.textContent = settings.streakRule.hint;
+  riskOutput.confidenceHint.textContent =
+    `${settings.confidenceRule.label} · 上限 ${formatPercent(settings.confidenceRule.cap)}`;
+  riskOutput.confidenceNote.textContent = settings.confidenceRule.note;
+
+  riskOutput.note.textContent = control
+    ? `当前实战建议 ${formatPercent(control.displayedKelly)}，主要限制来源：${control.limitReason}。原始凯利仍保持上方 f 值不变。`
+    : "风控面板只做额度和纪律提醒，不改变上方凯利公式的原始计算。";
+}
+
+function applyWorldRiskControls(rawKelly) {
+  const settings = getWorldRiskSettings();
+  const positiveKelly = Math.max(0, Number.isFinite(rawKelly) ? rawKelly : 0);
+  const selectedKelly = positiveKelly * settings.riskFactor;
+  const effectiveRiskFactor = Math.min(settings.riskFactor, settings.confidenceRule.cap);
+  const confidenceKelly = positiveKelly * effectiveRiskFactor;
+  const streakKelly = confidenceKelly * settings.streakRule.factor;
+  const singleCappedKelly = Math.min(streakKelly, settings.singleCapRatio);
+  const displayedKelly =
+    settings.dailyRemainingRatio === null
+      ? singleCappedKelly
+      : Math.min(singleCappedKelly, settings.dailyRemainingRatio);
+
+  let limitReason = "未触发额外上限";
+  if (positiveKelly <= 0) {
+    limitReason = "没有正向凯利优势";
+  } else if (settings.dailyRemainingRatio !== null && settings.dailyRemainingRatio <= EPSILON) {
+    limitReason = "今日剩余额度";
+  } else if (
+    settings.dailyRemainingRatio !== null &&
+    displayedKelly + EPSILON < singleCappedKelly
+  ) {
+    limitReason = "今日剩余额度";
+  } else if (singleCappedKelly + EPSILON < streakKelly) {
+    limitReason = "单场上限";
+  } else if (settings.streakRule.factor < 1) {
+    limitReason = "连亏保护";
+  } else if (effectiveRiskFactor + EPSILON < settings.riskFactor) {
+    limitReason = "信心等级";
+  } else if (settings.riskFactor < 1) {
+    limitReason = settings.riskFactorLabel;
+  }
+
+  return {
+    ...settings,
+    selectedKelly,
+    effectiveRiskFactor,
+    confidenceKelly,
+    streakKelly,
+    displayedKelly: clamp(displayedKelly, 0, 1),
+    limitReason,
+  };
+}
+
+function createWorldStakeHint(control) {
+  if (control.selectedKelly <= 0) {
     return "当前不建议下注";
   }
 
-  if (displayedKelly !== adjustedKelly) {
-    return `已按单场上限 ${formatPercent(capRatio)} 做了限制`;
+  if (control.displayedKelly <= EPSILON && control.limitReason === "今日剩余额度") {
+    return "今日额度已用完，建议停止加仓";
   }
 
-  return `${riskFactorLabel}已生效`;
+  if (control.displayedKelly + EPSILON < control.streakKelly) {
+    return `已按${control.limitReason}限制到 ${formatPercent(control.displayedKelly)}`;
+  }
+
+  if (control.limitReason === "连亏保护") {
+    return `连亏保护已生效，实战仓位降至 ${formatPercent(control.displayedKelly)}`;
+  }
+
+  if (control.limitReason === "信心等级") {
+    return `${control.confidenceRule.label}已压低仓位，实战建议 ${formatPercent(control.displayedKelly)}`;
+  }
+
+  return `${control.riskFactorLabel}已生效，实战建议 ${formatPercent(control.displayedKelly)}`;
 }
 
 function buildStakeAmount(bankroll, ratio) {
@@ -843,9 +1171,6 @@ function calculateWorldBinary(saveToHistory = false) {
   const matchName = worldInputs.matchName.value.trim() || "本场比赛";
   const odds = parseNumber(worldInputs.decimalOdds);
   const probability = parseNumber(worldInputs.subjectiveProbability);
-  const bankroll = parseNumber(worldInputs.worldBankroll);
-  const maxStakePercent = parseNumber(worldInputs.maxStakePercent);
-  const riskFactor = Number.parseFloat(worldInputs.riskFactorWorld.value || "0.5");
 
   if (odds === null || probability === null) {
     renderEmpty("worldCup", "补全二元玩法的赔率和主观胜率后会自动计算。");
@@ -873,15 +1198,14 @@ function calculateWorldBinary(saveToHistory = false) {
   const b = odds - 1;
   const expectedValue = p * odds - 1;
   const rawKelly = expectedValue / b;
-  const capRatio = clamp((maxStakePercent ?? 5) / 100, 0, 1);
-  const adjustedKelly = rawKelly * riskFactor;
-  const displayedKelly = clamp(adjustedKelly, 0, capRatio);
+  const riskControl = applyWorldRiskControls(rawKelly);
+  const displayedKelly = riskControl.displayedKelly;
   const fairOdds = 1 / p;
   const impliedProbability = 1 / odds;
   const edge = p - impliedProbability;
   const notes = [...probabilityPack.notes];
-  const riskFactorLabel = getSelectedText(worldInputs.riskFactorWorld);
-  const stakeAmount = buildStakeAmount(bankroll, displayedKelly);
+  const stakeAmount = buildStakeAmount(riskControl.bankroll, displayedKelly);
+  renderWorldRiskPanel(riskControl, riskControl);
 
   if (edge > 0) {
     notes.push(`你的主观胜率比庄家隐含概率高出 ${formatPercent(edge)}，说明这项赔率存在正价值。`);
@@ -889,14 +1213,19 @@ function calculateWorldBinary(saveToHistory = false) {
     notes.push(`你的主观胜率低于或等于庄家隐含概率 ${formatPercent(impliedProbability)}，赔率价值并不明显。`);
   }
 
-  notes.push(`当前选择的是 ${riskFactorLabel}，并额外设置了单场上限 ${formatPercent(capRatio)}。`);
+  notes.push(
+    `当前选择的是 ${riskControl.riskFactorLabel}，单场上限 ${formatPercent(riskControl.singleCapRatio)}，单日上限 ${formatPercent(riskControl.dailyMaxRatio)}。`,
+  );
+  notes.push(
+    `风控后实战仓位为 ${formatPercent(displayedKelly)}，限制来源：${riskControl.limitReason}。`,
+  );
   notes.push("这类计算更适合让球、大小球、晋级这类只有赢或输的二元市场。");
 
   const summary =
     rawKelly <= 0
       ? `按你给出的胜率估计，“${selection}”当前没有正向优势，建议观望。`
-      : displayedKelly < adjustedKelly
-        ? `“${selection}”存在正向优势，但仓位已经被单场上限压住。`
+      : displayedKelly + EPSILON < riskControl.selectedKelly
+        ? `“${selection}”存在正向优势，但实战仓位已被${riskControl.limitReason}压住。`
         : `“${selection}”存在正向优势，可以把建议仓位作为世界杯实战参考。`;
 
   renderResult({
@@ -907,7 +1236,7 @@ function calculateWorldBinary(saveToHistory = false) {
     evValue: formatPercent(expectedValue),
     evHint: expectedValue > 0 ? "每下注 1 单位的理论收益率" : "期望值不为正",
     stakeRatio: formatPercent(displayedKelly),
-    stakeHint: createStakeHints(adjustedKelly, displayedKelly, capRatio, riskFactorLabel),
+    stakeHint: createWorldStakeHint(riskControl),
     stakeAmount: stakeAmount.value,
     amountHint: stakeAmount.hint,
     referenceLabel: "公平赔率",
@@ -930,6 +1259,11 @@ function calculateWorldBinary(saveToHistory = false) {
       summary,
       stakeRatioText: `建议 ${formatPercent(displayedKelly)}`,
       stakeAmountText: stakeAmount.value,
+      rawKelly,
+      displayedKelly,
+      expectedValue,
+      marketLabel: "二元玩法",
+      recommendedLabel: selection,
       timestamp: Date.now(),
     });
   }
@@ -951,9 +1285,6 @@ function calculateWorldThreeWay(saveToHistory = false) {
     parseNumber(worldInputs.drawOdds),
     parseNumber(worldInputs.awayOdds),
   ];
-  const bankroll = parseNumber(worldInputs.worldBankroll);
-  const maxStakePercent = parseNumber(worldInputs.maxStakePercent);
-  const riskFactor = Number.parseFloat(worldInputs.riskFactorWorld.value || "0.5");
 
   if (probabilityValues.some((value) => value === null) || oddsValues.some((value) => value === null)) {
     renderEmpty("worldCup", "补全胜平负的三项概率和赔率后会自动计算。");
@@ -977,8 +1308,6 @@ function calculateWorldThreeWay(saveToHistory = false) {
   }
 
   const [homeProbability, drawProbability, awayProbability] = probabilityPack.values;
-  const capRatio = clamp((maxStakePercent ?? 5) / 100, 0, 1);
-  const riskFactorLabel = getSelectedText(worldInputs.riskFactorWorld);
   const options = [
     { label: `${homeTeam}胜`, probability: homeProbability, odds: oddsValues[0] },
     { label: "平局", probability: drawProbability, odds: oddsValues[1] },
@@ -987,16 +1316,12 @@ function calculateWorldThreeWay(saveToHistory = false) {
     const b = option.odds - 1;
     const expectedValue = option.probability * option.odds - 1;
     const rawKelly = expectedValue / b;
-    const adjustedKelly = rawKelly * riskFactor;
-    const displayedKelly = clamp(adjustedKelly, 0, capRatio);
 
     return {
       ...option,
       b,
       expectedValue,
       rawKelly,
-      adjustedKelly,
-      displayedKelly,
       fairOdds: 1 / option.probability,
       impliedProbability: 1 / option.odds,
     };
@@ -1008,8 +1333,11 @@ function calculateWorldThreeWay(saveToHistory = false) {
   const rankedOptions = [...options].sort((left, right) => right.rawKelly - left.rawKelly);
   const bestOption = positiveOptions.sort((left, right) => right.rawKelly - left.rawKelly)[0] ?? rankedOptions[0];
   const matchLabel = matchName || `${homeTeam} vs ${awayTeam}`;
-  const stakeAmount = buildStakeAmount(bankroll, bestOption.displayedKelly);
+  const riskControl = applyWorldRiskControls(bestOption.rawKelly);
+  const displayedKelly = riskControl.displayedKelly;
+  const stakeAmount = buildStakeAmount(riskControl.bankroll, displayedKelly);
   const notes = [...probabilityPack.notes];
+  renderWorldRiskPanel(riskControl, riskControl);
 
   rankedOptions.forEach((option, index) => {
     notes.push(
@@ -1017,12 +1345,19 @@ function calculateWorldThreeWay(saveToHistory = false) {
     );
   });
 
-  notes.push(`当前选择的是 ${riskFactorLabel}，并额外设置了单场上限 ${formatPercent(capRatio)}。`);
+  notes.push(
+    `当前选择的是 ${riskControl.riskFactorLabel}，单场上限 ${formatPercent(riskControl.singleCapRatio)}，单日上限 ${formatPercent(riskControl.dailyMaxRatio)}。`,
+  );
+  notes.push(
+    `推荐项风控后实战仓位为 ${formatPercent(displayedKelly)}，限制来源：${riskControl.limitReason}。`,
+  );
   notes.push("胜平负模式会分别估值三项，只推荐优势最高的一项，不建议同时押三项。");
 
   const hasPositiveEdge = bestOption.expectedValue > 0 && bestOption.rawKelly > 0;
   const summary = hasPositiveEdge
-    ? `当前最有优势的是“${bestOption.label}”，可以把它当作本场首选。`
+    ? displayedKelly + EPSILON < riskControl.selectedKelly
+      ? `当前最有优势的是“${bestOption.label}”，但实战仓位已被${riskControl.limitReason}压住。`
+      : `当前最有优势的是“${bestOption.label}”，可以把它当作本场首选。`
     : "三项都没有明显的正期望优势，建议本场观望。";
 
   renderResult({
@@ -1032,15 +1367,8 @@ function calculateWorldThreeWay(saveToHistory = false) {
     kellyHint: hasPositiveEdge ? `按“${bestOption.label}”计算的满凯利结果` : "当前不建议下注",
     evValue: formatPercent(bestOption.expectedValue),
     evHint: hasPositiveEdge ? "推荐项的每下注 1 单位理论收益率" : "推荐项期望值也不为正",
-    stakeRatio: formatPercent(hasPositiveEdge ? bestOption.displayedKelly : 0),
-    stakeHint: hasPositiveEdge
-      ? createStakeHints(
-          bestOption.adjustedKelly,
-          bestOption.displayedKelly,
-          capRatio,
-          riskFactorLabel,
-        )
-      : "建议本场观望",
+    stakeRatio: formatPercent(hasPositiveEdge ? displayedKelly : 0),
+    stakeHint: hasPositiveEdge ? createWorldStakeHint(riskControl) : "建议本场观望",
     stakeAmount: hasPositiveEdge ? stakeAmount.value : "--",
     amountHint: hasPositiveEdge ? stakeAmount.hint : "当前没有值得出手的正优势选项",
     referenceLabel: "公平赔率",
@@ -1061,8 +1389,13 @@ function calculateWorldThreeWay(saveToHistory = false) {
       title: matchLabel,
       detail: `${hasPositiveEdge ? bestOption.label : "观望"} · EV ${formatPercent(bestOption.expectedValue)} · 满凯利 ${formatNumber(hasPositiveEdge ? bestOption.rawKelly : 0)}`,
       summary,
-      stakeRatioText: hasPositiveEdge ? `建议 ${formatPercent(bestOption.displayedKelly)}` : "建议观望",
+      stakeRatioText: hasPositiveEdge ? `建议 ${formatPercent(displayedKelly)}` : "建议观望",
       stakeAmountText: hasPositiveEdge ? stakeAmount.value : "--",
+      rawKelly: hasPositiveEdge ? bestOption.rawKelly : 0,
+      displayedKelly: hasPositiveEdge ? displayedKelly : 0,
+      expectedValue: bestOption.expectedValue,
+      marketLabel: "胜平负",
+      recommendedLabel: hasPositiveEdge ? bestOption.label : "观望",
       timestamp: Date.now(),
     });
   }
@@ -1085,6 +1418,11 @@ function refreshCurrentCalculation(saveToHistory = false) {
   } else {
     renderThreeWayHelperEmpty("填入主胜 / 平局 / 客胜赔率后，这里会先给出市场基线概率。");
   }
+
+  if (currentMode === "worldCup") {
+    renderWorldRiskPanel();
+  }
+
   return currentMode === "worldCup"
     ? calculateWorldCup(saveToHistory)
     : calculateStandard(saveToHistory);
@@ -1284,9 +1622,7 @@ function resetStandardForm() {
 
 function resetWorldForm() {
   worldCupForm.reset();
-  worldInputs.marketType.value = "binary";
-  worldInputs.riskFactorWorld.value = "0.5";
-  worldInputs.maxStakePercent.value = "5";
+  applyDefaultWorldValues();
   updateWorldMarketUI();
   saveState();
   refreshCurrentCalculation(false);
@@ -1393,6 +1729,53 @@ historyList.addEventListener("click", (event) => {
   }
 
   historyStatus.textContent = `已删除记录：${deletedEntry.title}`;
+});
+
+historyList.addEventListener("change", (event) => {
+  const statusSelect = event.target.closest("[data-review-status-index]");
+  if (statusSelect) {
+    const index = Number.parseInt(statusSelect.dataset.reviewStatusIndex ?? "", 10);
+    if (!Number.isInteger(index) || !reviewStatusLabels[statusSelect.value]) {
+      historyStatus.textContent = "复盘状态保存失败，请刷新后重试。";
+      return;
+    }
+
+    const updatedEntry = updateHistoryReview(index, {
+      reviewStatus: statusSelect.value,
+    });
+
+    historyStatus.textContent = updatedEntry
+      ? `已更新复盘：${updatedEntry.title}`
+      : "复盘状态保存失败，请刷新后重试。";
+    return;
+  }
+
+  const pnlInput = event.target.closest("[data-review-pnl-index]");
+  if (!pnlInput) {
+    return;
+  }
+
+  const index = Number.parseInt(pnlInput.dataset.reviewPnlIndex ?? "", 10);
+  const pnlValue = pnlInput.value.trim() === "" ? null : Number.parseFloat(pnlInput.value);
+  if (!Number.isInteger(index) || (pnlValue !== null && !Number.isFinite(pnlValue))) {
+    historyStatus.textContent = "实际盈亏保存失败，请输入数字。";
+    return;
+  }
+
+  const updatedEntry = updateHistoryReview(index, {
+    reviewPnl: pnlValue,
+  });
+
+  historyStatus.textContent = updatedEntry
+    ? `已更新盈亏：${updatedEntry.title}`
+    : "实际盈亏保存失败，请刷新后重试。";
+});
+
+historyList.addEventListener("keydown", (event) => {
+  const pnlInput = event.target.closest("[data-review-pnl-index]");
+  if (pnlInput && event.key === "Enter") {
+    pnlInput.blur();
+  }
 });
 
 calculateScoreHelperButton.addEventListener("click", () => {

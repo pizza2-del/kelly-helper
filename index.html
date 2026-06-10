@@ -640,6 +640,102 @@
                   />
                 </label>
               </div>
+
+              <div class="field-grid">
+                <label class="field">
+                  <span>今日已投入</span>
+                  <input
+                    id="dailyStakeUsed"
+                    name="dailyStakeUsed"
+                    type="number"
+                    inputmode="decimal"
+                    min="0"
+                    step="0.01"
+                    placeholder="例如 300"
+                  />
+                </label>
+
+                <label class="field">
+                  <span>单日上限（%）</span>
+                  <input
+                    id="dailyMaxPercent"
+                    name="dailyMaxPercent"
+                    type="number"
+                    inputmode="decimal"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    placeholder="默认 12"
+                  />
+                </label>
+              </div>
+
+              <div class="field-grid">
+                <label class="field">
+                  <span>本届累计投入</span>
+                  <input
+                    id="tournamentStakeUsed"
+                    name="tournamentStakeUsed"
+                    type="number"
+                    inputmode="decimal"
+                    min="0"
+                    step="0.01"
+                    placeholder="例如 1800"
+                  />
+                </label>
+
+                <label class="field">
+                  <span>连续亏损场次</span>
+                  <input
+                    id="losingStreak"
+                    name="losingStreak"
+                    type="number"
+                    inputmode="numeric"
+                    min="0"
+                    step="1"
+                    placeholder="例如 2"
+                  />
+                </label>
+              </div>
+
+              <label class="field">
+                <span>信心等级</span>
+                <select id="confidenceLevel" name="confidenceLevel">
+                  <option value="low">低：建议四分之一凯利</option>
+                  <option value="medium" selected>中：建议半凯利</option>
+                  <option value="high">高：可考虑半凯利以上</option>
+                </select>
+              </label>
+
+              <div class="helper-grid risk-grid">
+                <article class="helper-metric">
+                  <span class="metric-label">今日剩余额度</span>
+                  <strong class="metric-value helper-list" id="riskDailyRemaining">--</strong>
+                  <small class="metric-note" id="riskDailyHint">填写总资金后显示</small>
+                </article>
+
+                <article class="helper-metric">
+                  <span class="metric-label">本届投入占比</span>
+                  <strong class="metric-value helper-list" id="riskTournamentExposure">--</strong>
+                  <small class="metric-note" id="riskTournamentHint">用于控制总暴露</small>
+                </article>
+
+                <article class="helper-metric">
+                  <span class="metric-label">连亏保护</span>
+                  <strong class="metric-value helper-list" id="riskStreakGuard">--</strong>
+                  <small class="metric-note" id="riskStreakHint">按连续亏损场次降档</small>
+                </article>
+
+                <article class="helper-metric">
+                  <span class="metric-label">信心建议</span>
+                  <strong class="metric-value helper-list" id="riskConfidenceHint">--</strong>
+                  <small class="metric-note" id="riskConfidenceNote">用于约束仓位系数</small>
+                </article>
+              </div>
+
+              <p class="field-note" id="riskPanelNote">
+                风控面板只做额度和纪律提醒，不改变上方凯利公式的原始计算。
+              </p>
             </div>
 
             <p class="field-note">
@@ -724,6 +820,9 @@
               </button>
             </div>
 
+            <div class="review-summary" id="reviewSummary">
+              <span>复盘：等待记录</span>
+            </div>
             <p class="history-empty" id="historyEmpty">还没有保存过计算记录。</p>
             <ul class="history-list" id="historyList"></ul>
             <p class="helper-status" id="historyStatus"></p>

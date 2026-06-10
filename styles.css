@@ -456,6 +456,18 @@ body::before {
   gap: 16px;
 }
 
+.review-summary {
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  color: var(--accent-deep);
+  background:
+    linear-gradient(135deg, rgba(255, 236, 224, 0.96), rgba(255, 246, 235, 0.92));
+  border: 1px solid rgba(207, 90, 47, 0.14);
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
 .history-empty {
   margin: 0;
   color: var(--muted);
@@ -501,6 +513,43 @@ body::before {
 .history-detail,
 .history-meta {
   margin: 0;
+}
+
+.history-review {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 244, 235, 0.72);
+  border: 1px dashed rgba(143, 52, 23, 0.18);
+}
+
+.history-review-title {
+  margin: 0;
+  color: var(--accent-deep);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.history-review-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.history-review-field {
+  gap: 6px;
+}
+
+.history-review-field span {
+  font-size: 0.84rem;
+}
+
+.history-review-field input,
+.history-review-field select {
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 0.92rem;
 }
 
 .history-actions {
@@ -557,6 +606,7 @@ code {
 
   .field-grid,
   .helper-grid,
+  .history-review-grid,
   .actions,
   .result-grid,
   .mode-switch {
