@@ -774,6 +774,78 @@ function appendHistory(entry) {
   renderHistory();
 }
 
+function getHistoryParlayLegs(entry) {
+  if (Array.isArray(entry.parlayLegs) && entry.parlayLegs.length > 0) {
+    return entry.parlayLegs;
+  }
+
+  if (entry.marketLabel !== "串关" || !entry.recommendedLabel) {
+    return [];
+  }
+
+  return entry.recommendedLabel
+    .split(/\s+\/\s+/)
+    .map((label, index) => ({
+      index: index + 1,
+      label: label.trim(),
+    }))
+    .filter((leg) => leg.label !== "");
+}
+
+function createHistoryParlayDetails(entry) {
+  const legs = getHistoryParlayLegs(entry);
+
+  if (legs.length === 0) {
+    return null;
+  }
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "history-parlay";
+
+  const heading = document.createElement("p");
+  heading.className = "history-parlay-title";
+  heading.textContent = "串关投注项 / 比分";
+  wrapper.append(heading);
+
+  legs.forEach((leg) => {
+    const row = document.createElement("div");
+    row.className = "history-parlay-leg";
+
+    const label = document.createElement("span");
+    label.className = "history-parlay-leg-label";
+    label.textContent = `第 ${leg.index} 腿`;
+
+    const content = document.createElement("div");
+    content.className = "history-parlay-leg-content";
+
+    const name = document.createElement("strong");
+    name.textContent = leg.label || `第 ${leg.index} 腿`;
+    content.append(name);
+
+    const metaParts = [];
+    if (Number.isFinite(leg.probability)) {
+      metaParts.push(`概率 ${formatPercent(leg.probability)}`);
+    }
+    if (Number.isFinite(leg.odds)) {
+      metaParts.push(`赔率 ${formatNumber(leg.odds, 3)}`);
+    }
+    if (Number.isFinite(leg.expectedValue)) {
+      metaParts.push(`单腿 EV ${formatPercent(leg.expectedValue)}`);
+    }
+
+    if (metaParts.length > 0) {
+      const meta = document.createElement("span");
+      meta.textContent = metaParts.join(" · ");
+      content.append(meta);
+    }
+
+    row.append(label, content);
+    wrapper.append(row);
+  });
+
+  return wrapper;
+}
+
 function renderHistory() {
   const entries = getHistory();
   historyList.innerHTML = "";
@@ -814,6 +886,8 @@ function renderHistory() {
     const detail = document.createElement("p");
     detail.className = "history-detail";
     detail.textContent = entry.detail;
+
+    const parlayDetails = createHistoryParlayDetails(entry);
 
     const bottom = document.createElement("div");
     bottom.className = "history-bottom";
@@ -877,7 +951,11 @@ function renderHistory() {
     reviewGrid.append(statusField, pnlField);
     review.append(reviewTitle, reviewGrid);
 
-    item.append(top, title, detail, bottom, review);
+    item.append(top, title, detail);
+    if (parlayDetails) {
+      item.append(parlayDetails);
+    }
+    item.append(bottom, review);
     historyList.append(item);
   });
 }
@@ -1645,6 +1723,15 @@ function calculateWorldParlay(saveToHistory = false) {
   });
 
   if (saveToHistory) {
+    const historyLegs = legs.map((leg) => ({
+      index: leg.index,
+      label: leg.label,
+      probability: leg.probability,
+      odds: leg.odds,
+      expectedValue: leg.expectedValue,
+      fairOdds: leg.fairOdds,
+    }));
+
     appendHistory({
       modeLabel: "世界杯串关",
       title: matchName,
@@ -1657,6 +1744,7 @@ function calculateWorldParlay(saveToHistory = false) {
       expectedValue,
       marketLabel: "串关",
       recommendedLabel: legLabels.join(" / "),
+      parlayLegs: historyLegs,
       timestamp: Date.now(),
     });
   }
