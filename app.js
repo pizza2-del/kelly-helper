@@ -180,6 +180,7 @@ const historyList = document.querySelector("#historyList");
 const historyEmpty = document.querySelector("#historyEmpty");
 const reviewSummary = document.querySelector("#reviewSummary");
 const historyStatus = document.querySelector("#historyStatus");
+const mobileTabbarLinks = [...document.querySelectorAll(".mobile-tabbar a")];
 
 let currentMode = "standard";
 let deferredInstallPrompt = null;
@@ -2004,6 +2005,35 @@ function registerPwaSupport() {
   });
 }
 
+function updateMobileTabbar() {
+  if (mobileTabbarLinks.length === 0) {
+    return;
+  }
+
+  const sections = [
+    { id: "calculatorPanel", link: mobileTabbarLinks[0] },
+    { id: "resultCard", link: mobileTabbarLinks[1] },
+    { id: "historyCard", link: mobileTabbarLinks[2] },
+  ];
+  const headerOffset = window.matchMedia("(max-width: 640px)").matches ? 120 : 0;
+  let activeLink = sections[0].link;
+
+  sections.forEach((section) => {
+    const element = document.querySelector(`#${section.id}`);
+    if (!element) {
+      return;
+    }
+
+    if (element.getBoundingClientRect().top - headerOffset <= 0) {
+      activeLink = section.link;
+    }
+  });
+
+  mobileTabbarLinks.forEach((link) => {
+    link.classList.toggle("is-active", link === activeLink);
+  });
+}
+
 function bindInputListeners(elements) {
   elements.forEach((element) => {
     element.addEventListener("input", () => {
@@ -2030,6 +2060,7 @@ updateModeUI();
 renderHistory();
 refreshCurrentCalculation(false);
 registerPwaSupport();
+updateMobileTabbar();
 
 modeButtons.forEach((button) => {
   button.addEventListener("click", () => {
@@ -2053,6 +2084,9 @@ worldCupForm.addEventListener("submit", (event) => {
 });
 
 bindInputListeners([...Object.values(standardInputs), ...Object.values(worldInputs)]);
+
+window.addEventListener("resize", updateMobileTabbar);
+window.addEventListener("scroll", updateMobileTabbar, { passive: true });
 
 standardResetButton.addEventListener("click", resetStandardForm);
 worldResetButton.addEventListener("click", resetWorldForm);

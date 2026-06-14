@@ -8,10 +8,21 @@
     <link rel="manifest" href="./manifest.json" />
     <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=16" />
   </head>
   <body>
     <main class="shell">
+      <header class="app-topbar" aria-label="应用导航">
+        <div class="app-brand">
+          <span class="app-brand-mark" aria-hidden="true">K</span>
+          <div>
+            <strong>凯利仓位</strong>
+            <span>世界杯投注助手</span>
+          </div>
+        </div>
+        <a class="app-topbar-link" href="#historyCard">记录</a>
+      </header>
+
       <section class="hero card">
         <p class="eyebrow">Kelly Formula PWA</p>
         <h1>凯利仓位助手</h1>
@@ -28,7 +39,7 @@
         </div>
       </section>
 
-      <section class="workspace">
+      <section class="workspace" id="calculatorPanel">
         <section class="card form-card">
           <div class="mode-switch" role="tablist" aria-label="计算模式">
             <button
@@ -942,7 +953,7 @@
             </ul>
           </section>
 
-          <section class="card history-card">
+          <section class="card history-card" id="historyCard">
             <div class="section-row">
               <div class="section-head">
                 <h2>本地记录</h2>
@@ -980,6 +991,21 @@
       <a class="mobile-result-link" href="#resultCard">详情</a>
     </aside>
 
-    <script type="module" src="./app.js"></script>
+    <nav class="mobile-tabbar" aria-label="手机快捷导航">
+      <a class="is-active" href="#calculatorPanel">
+        <span>计算</span>
+        <strong>输入</strong>
+      </a>
+      <a href="#resultCard">
+        <span>结果</span>
+        <strong>仓位</strong>
+      </a>
+      <a href="#historyCard">
+        <span>记录</span>
+        <strong>复盘</strong>
+      </a>
+    </nav>
+
+    <script type="module" src="./app.js?v=16"></script>
   </body>
 </html>
