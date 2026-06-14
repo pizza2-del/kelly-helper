@@ -8,7 +8,7 @@
     <link rel="manifest" href="./manifest.json" />
     <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
-    <link rel="stylesheet" href="./styles.css?v=16" />
+    <link rel="stylesheet" href="./styles.css?v=18" />
   </head>
   <body>
     <main class="shell">
@@ -198,7 +198,19 @@
 
             <div id="binaryFields">
               <div class="field-group" id="binaryBetFields">
-                <p class="field-group-title">二元玩法参数</p>
+                <div class="helper-head">
+                  <div>
+                    <p class="field-group-title">二元玩法参数</p>
+                    <p class="helper-copy">
+                      只清空投注选项、赔率和主观胜率，不影响比分辅助器和风险控制。
+                    </p>
+                  </div>
+                  <div class="helper-actions">
+                    <button class="text-btn" type="button" id="clearBinaryButton">
+                      清空二元玩法
+                    </button>
+                  </div>
+                </div>
                 <div class="field-grid">
                   <label class="field">
                     <span>投注选项</span>
@@ -249,6 +261,9 @@
                   <div class="helper-actions">
                     <button class="text-btn" type="button" id="calculateScoreHelperButton">
                       计算比分概率
+                    </button>
+                    <button class="text-btn" type="button" id="clearScoreHelperButton">
+                      清空辅助器
                     </button>
                     <button class="text-btn" type="button" id="applyScoreHelperButton">
                       回填到主观胜率
@@ -755,7 +770,19 @@
             </div>
 
             <div class="field-group">
-              <p class="field-group-title">风险控制</p>
+              <div class="helper-head">
+                <div>
+                  <p class="field-group-title">风险控制</p>
+                  <p class="helper-copy">
+                    清空资金与复盘状态，保留默认的单场和单日上限。
+                  </p>
+                </div>
+                <div class="helper-actions">
+                  <button class="text-btn" type="button" id="clearRiskButton">
+                    清空风险控制
+                  </button>
+                </div>
+              </div>
               <div class="field-grid">
                 <label class="field">
                   <span>总资金</span>
@@ -1006,6 +1033,6 @@
       </a>
     </nav>
 
-    <script type="module" src="./app.js?v=16"></script>
+    <script type="module" src="./app.js?v=18"></script>
   </body>
 </html>

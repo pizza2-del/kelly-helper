@@ -1,9 +1,9 @@
-const CACHE_NAME = "kelly-position-helper-v16";
+const CACHE_NAME = "kelly-position-helper-v18";
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=16",
-  "./app.js?v=16",
+  "./styles.css?v=18",
+  "./app.js?v=18",
   "./manifest.json",
   "./icons/icon.svg",
   "./icons/icon-192.png",

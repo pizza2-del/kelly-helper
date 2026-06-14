@@ -44,6 +44,9 @@ const worldCupForm = document.querySelector("#worldCupForm");
 const standardResetButton = document.querySelector("#standardResetButton");
 const worldResetButton = document.querySelector("#worldResetButton");
 const clearHistoryButton = document.querySelector("#clearHistoryButton");
+const clearBinaryButton = document.querySelector("#clearBinaryButton");
+const clearScoreHelperButton = document.querySelector("#clearScoreHelperButton");
+const clearRiskButton = document.querySelector("#clearRiskButton");
 const installButton = document.querySelector("#installButton");
 const installTip = document.querySelector("#installTip");
 const modeCopy = document.querySelector("#modeCopy");
@@ -766,6 +769,7 @@ function appendHistory(entry) {
     {
       reviewStatus: "pending",
       reviewPnl: null,
+      reviewNote: "",
       ...entry,
     },
     ...getHistory(),
@@ -950,7 +954,21 @@ function renderHistory() {
 
     pnlField.append(pnlLabel, pnlInput);
     reviewGrid.append(statusField, pnlField);
-    review.append(reviewTitle, reviewGrid);
+
+    const noteField = document.createElement("label");
+    noteField.className = "field history-review-field history-review-note-field";
+
+    const noteLabel = document.createElement("span");
+    noteLabel.textContent = "赛后分析记录";
+
+    const noteInput = document.createElement("textarea");
+    noteInput.rows = 3;
+    noteInput.placeholder = "例如：判断对在哪里，哪里高估了，临场信息是否影响结果，下次要避免什么。";
+    noteInput.value = typeof entry.reviewNote === "string" ? entry.reviewNote : "";
+    noteInput.dataset.reviewNoteIndex = String(index);
+
+    noteField.append(noteLabel, noteInput);
+    review.append(reviewTitle, reviewGrid, noteField);
 
     item.append(top, title, detail);
     if (parlayDetails) {
@@ -1982,6 +2000,37 @@ function resetWorldForm() {
   refreshCurrentCalculation(false);
 }
 
+function resetBinaryBetFields() {
+  worldInputs.selectionLabel.value = "";
+  worldInputs.decimalOdds.value = "";
+  worldInputs.subjectiveProbability.value = "";
+  saveState();
+  refreshCurrentCalculation(false);
+}
+
+function resetScoreHelperFields() {
+  worldInputs.homeExpectedGoals.value = "";
+  worldInputs.awayExpectedGoals.value = "";
+  worldInputs.targetHomeGoals.value = "";
+  worldInputs.targetAwayGoals.value = "";
+  worldInputs.tempoBias.value = "1";
+  renderScoreHelperEmpty("填写预期进球和目标比分后，这里会给出参考概率。");
+  saveState();
+  refreshCurrentCalculation(false);
+}
+
+function resetRiskControlFields() {
+  worldInputs.worldBankroll.value = "";
+  worldInputs.maxStakePercent.value = String(DEFAULT_WORLD_SINGLE_CAP_PERCENT);
+  worldInputs.dailyStakeUsed.value = "";
+  worldInputs.dailyMaxPercent.value = String(DEFAULT_WORLD_DAILY_CAP_PERCENT);
+  worldInputs.tournamentStakeUsed.value = "";
+  worldInputs.losingStreak.value = "";
+  worldInputs.confidenceLevel.value = "medium";
+  saveState();
+  refreshCurrentCalculation(false);
+}
+
 function registerPwaSupport() {
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
@@ -2090,6 +2139,9 @@ window.addEventListener("scroll", updateMobileTabbar, { passive: true });
 
 standardResetButton.addEventListener("click", resetStandardForm);
 worldResetButton.addEventListener("click", resetWorldForm);
+clearBinaryButton.addEventListener("click", resetBinaryBetFields);
+clearScoreHelperButton.addEventListener("click", resetScoreHelperFields);
+clearRiskButton.addEventListener("click", resetRiskControlFields);
 
 clearHistoryButton.addEventListener("click", () => {
   localStorage.removeItem(HISTORY_KEY);
@@ -2134,6 +2186,24 @@ historyList.addEventListener("change", (event) => {
     historyStatus.textContent = updatedEntry
       ? `已更新复盘：${updatedEntry.title}`
       : "复盘状态保存失败，请刷新后重试。";
+    return;
+  }
+
+  const noteInput = event.target.closest("[data-review-note-index]");
+  if (noteInput) {
+    const index = Number.parseInt(noteInput.dataset.reviewNoteIndex ?? "", 10);
+    if (!Number.isInteger(index)) {
+      historyStatus.textContent = "赛后分析保存失败，请刷新后重试。";
+      return;
+    }
+
+    const updatedEntry = updateHistoryReview(index, {
+      reviewNote: noteInput.value,
+    });
+
+    historyStatus.textContent = updatedEntry
+      ? `已保存赛后分析：${updatedEntry.title}`
+      : "赛后分析保存失败，请刷新后重试。";
     return;
   }
 

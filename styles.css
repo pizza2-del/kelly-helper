@@ -623,10 +623,32 @@ body::before {
 }
 
 .history-review-field input,
-.history-review-field select {
+.history-review-field select,
+.history-review-field textarea {
   padding: 10px 12px;
   border-radius: 12px;
   font-size: 0.92rem;
+}
+
+.history-review-field textarea {
+  width: 100%;
+  min-height: 86px;
+  resize: vertical;
+  color: var(--ink);
+  background: var(--card-strong);
+  border: 1px solid var(--line);
+  font: inherit;
+  line-height: 1.55;
+  outline: none;
+}
+
+.history-review-field textarea:focus {
+  border-color: rgba(207, 90, 47, 0.55);
+  box-shadow: 0 0 0 4px rgba(207, 90, 47, 0.12);
+}
+
+.history-review-note-field {
+  grid-column: 1 / -1;
 }
 
 .history-actions {
